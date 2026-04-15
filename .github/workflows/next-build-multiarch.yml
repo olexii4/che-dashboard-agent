@@ -1,0 +1,57 @@
+#
+# Copyright (c) 2025 Red Hat, Inc.
+# This program and the accompanying materials are made
+# available under the terms of the Eclipse Public License 2.0
+# which is available at https://www.eclipse.org/legal/epl-2.0/
+#
+# SPDX-License-Identifier: EPL-2.0
+#
+# Contributors:
+#   Red Hat, Inc. - initial API and implementation
+#
+
+name: Next Build - Multiarch
+
+on:
+  workflow_dispatch:
+    inputs: {}
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: quay.io/oorel
+  IMAGE_NAME: dashboard-agent
+  IMAGE_VERSION: next
+
+jobs:
+
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      -
+        name: "Checkout source code"
+        uses: actions/checkout@v4
+      -
+        name: "Set up QEMU"
+        uses: docker/setup-qemu-action@v3
+      -
+        name: "Set up Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+      -
+        name: "Login to Quay.io"
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      -
+        name: "Build and push dashboard-agent"
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_VERSION }}
