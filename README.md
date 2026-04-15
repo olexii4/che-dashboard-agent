@@ -63,6 +63,59 @@ CI builds are triggered on push to `main` via the [Next Build workflow](.github/
 
 The `ANTHROPIC_API_KEY` environment variable must be set in the DevWorkspace (via the `devfile.yaml` or a Kubernetes Secret).
 
+## Patching Eclipse Che with the Dashboard Agent
+
+The dashboard agent requires a patched [che-dashboard](https://github.com/eclipse-che/che-dashboard) that includes the Devfile Creator feature (branch `devfile_creator`). Both the dashboard and the agent DevWorkspace template must be deployed to the cluster.
+
+### 1. Build and push images
+
+```bash
+# Dashboard agent
+podman build -t quay.io/oorel/dashboard-agent:latest .
+podman push quay.io/oorel/dashboard-agent:latest
+
+# Patched che-dashboard (from the che-dashboard repo, branch devfile_creator)
+cd /path/to/che-dashboard
+podman build -f build/dockerfiles/Dockerfile -t quay.io/oorel/che-dashboard:devfile-creator .
+podman push quay.io/oorel/che-dashboard:devfile-creator
+```
+
+### 2. Patch the CheCluster to use the custom dashboard image
+
+```bash
+kubectl patch -n eclipse-che checluster/eclipse-che --type=json \
+  -p='[{"op":"replace","path":"/spec/components/dashboard/deployment","value":{"containers":[{"image":"quay.io/oorel/che-dashboard:devfile-creator","name":"che-dashboard"}]}}]'
+
+oc rollout status deployment/che-dashboard -n eclipse-che --timeout=120s
+```
+
+Or update the deployment directly:
+
+```bash
+oc set image deployment/che-dashboard -n eclipse-che \
+  che-dashboard=quay.io/oorel/che-dashboard:devfile-creator
+
+oc rollout status deployment/che-dashboard -n eclipse-che --timeout=120s
+```
+
+### 3. Create the agent DevWorkspace template
+
+Apply the `devfile.yaml` as a DevWorkspace in the user's namespace. Set the `ANTHROPIC_API_KEY` before creating:
+
+```bash
+# Set the API key in the devfile
+sed -i "s/value: ''/value: 'sk-ant-...'/" devfile.yaml
+
+# Create the DevWorkspace
+kubectl apply -f devfile.yaml -n <user-namespace>
+```
+
+The dashboard will automatically detect the agent workspace (by the `che.eclipse.org/workspace-type: agent` label) and show it in the Devfile Creator UI.
+
+### 4. Verify
+
+Open the Che Dashboard, navigate to **Devfiles**, create or open a devfile, and click **Start Agent**. The agent terminal should appear in the right panel with Claude Code ready to assist.
+
 ## License
 
 [EPL-2.0](LICENSE)
