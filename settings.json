@@ -1,5 +1,6 @@
 {
   "env": {},
   "model": "claude-opus-4-6",
-  "hasCompletedOnboarding": true
+  "hasCompletedOnboarding": true,
+  "skipDangerousModePermissionPrompt": true
 }
