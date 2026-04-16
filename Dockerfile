@@ -33,20 +33,28 @@ RUN set -e && \
 
 # Install gritty globally (xterm.js + node-pty + socket.io terminal)
 RUN npm install -g gritty && \
-    npm cache clean --force
+    npm cache clean --force && \
+    find /usr/local/lib/node_modules/gritty -type f \( \
+      -name "*.md" -o -name "*.txt" -o -name "*.map" \
+      -o -name "LICENSE*" -o -name "CHANGELOG*" -o -name "HISTORY*" \
+      -o -name "Makefile" -o -name "*.yml" -o -name "*.yaml" \
+    \) -delete 2>/dev/null; true
 
-# Stage 2: Minimal runtime image
-FROM registry.access.redhat.com/ubi10/ubi-minimal:10.0
+# Stage 2: Minimal Debian runtime
+FROM debian:bookworm-slim
 
-# Install bash, Node.js for gritty, and jq/python3 for Claude Code tools
-RUN microdnf install -y bash procps-ng nodejs jq python3 && \
-    microdnf clean all
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends bash libstdc++6 procps && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy Node.js binary only (not npm — not needed at runtime)
+COPY --from=builder /usr/local/bin/node /usr/local/bin/node
+
+# Copy only gritty and its dependencies (not npm, corepack, etc.)
+COPY --from=builder /usr/local/lib/node_modules/gritty /usr/local/lib/node_modules/gritty
 
 # Copy Claude Code native binary
 COPY --from=builder /usr/local/bin/claude /usr/local/bin/claude-bin
-
-# Copy gritty from builder (global node_modules)
-COPY --from=builder /usr/local/lib/node_modules /usr/local/lib/node_modules
 
 # Symlink gritty binary
 RUN ln -s /usr/local/lib/node_modules/gritty/bin/gritty.js /usr/local/bin/gritty
@@ -61,15 +69,12 @@ if [ ! -w "$HOME" ]; then\n\
 fi\n\
 mkdir -p "$HOME/.claude/sessions" "$HOME/.claude/plugins" "$HOME/.local/bin"\n\
 export PATH="$HOME/.local/bin:$SCRIPT_DIR:$PATH"\n\
-# Copy skills CLAUDE.md into working directory if not present\n\
 if [ ! -f "$HOME/CLAUDE.md" ]; then\n\
   cp /opt/claude-skills/CLAUDE.md "$HOME/CLAUDE.md" 2>/dev/null || true\n\
 fi\n\
-# Copy Claude Code settings if not present\n\
 if [ ! -f "$HOME/.claude/settings.json" ]; then\n\
   cp /opt/claude-skills/settings.json "$HOME/.claude/settings.json" 2>/dev/null || true\n\
 fi\n\
-# Copy onboarding state to skip first-run wizard\n\
 if [ ! -f "$HOME/.claude.json" ]; then\n\
   cp /opt/claude-skills/claude.json "$HOME/.claude.json" 2>/dev/null || true\n\
 fi\n\
@@ -97,17 +102,13 @@ fi\n\
 mkdir -p "$HOME/.claude/sessions" "$HOME/.claude/plugins" "$HOME/.local/bin"\n\
 export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"\n\
 export CLAUDE_CODE_SKIP_PERMISSIONS_CONFIRMATION=1\n\
-# Copy .bashrc\n\
 cp /opt/claude-skills/.bashrc "$HOME/.bashrc" 2>/dev/null || true\n\
-# Copy skills CLAUDE.md\n\
 if [ ! -f "$HOME/CLAUDE.md" ]; then\n\
   cp /opt/claude-skills/CLAUDE.md "$HOME/CLAUDE.md" 2>/dev/null || true\n\
 fi\n\
-# Copy Claude Code settings\n\
 if [ ! -f "$HOME/.claude/settings.json" ]; then\n\
   cp /opt/claude-skills/settings.json "$HOME/.claude/settings.json" 2>/dev/null || true\n\
 fi\n\
-# Copy onboarding state to skip first-run wizard\n\
 if [ ! -f "$HOME/.claude.json" ]; then\n\
   cp /opt/claude-skills/claude.json "$HOME/.claude.json" 2>/dev/null || true\n\
 fi\n\

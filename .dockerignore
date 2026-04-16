@@ -1,0 +1,9 @@
+.git
+.github
+.idea
+.cursor
+*.md
+!CLAUDE.md
+LICENSE
+devfile.yaml
+terminal-server
