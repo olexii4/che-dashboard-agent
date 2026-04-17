@@ -213,6 +213,7 @@ attributes:
 9. Use `volume` components for caches (Maven, npm, pip) that should persist.
 10. **NEVER use this agent's own image or gritty/terminal images in generated devfiles.** The devfile should use development images appropriate for the user's project (e.g., UDI, Node.js, Go, Python images).
 11. **The `command` and `args` fields on containers are rarely needed.** The default entrypoint of most dev images is sufficient. Do NOT add `command: ['tail']` / `args: ['-f', '/dev/null']` unless the image requires it.
+12. **All `name` fields (projects, components, commands) MUST match the pattern `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`.** This means: lowercase letters, digits, and hyphens only; must start and end with a letter or digit. Convert names like `Angular_Tutorial_App` → `angular-tutorial-app`, `My Project` → `my-project`. To convert a Git repo name: lowercase it, replace any character that is not `a-z`, `0-9`, or `-` with `-`, strip leading/trailing hyphens.
 
 ## Real-World Devfile Examples
 
