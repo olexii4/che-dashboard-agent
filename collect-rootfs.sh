@@ -22,10 +22,10 @@ copy_bin /bin/bash             $R/bin/bash
 ln -sf bash $R/bin/sh
 copy_bin /usr/local/bin/claude $R/usr/local/bin/claude-bin
 
-# Coreutils needed by Claude Code agent
+# Coreutils and tools needed by Claude Code agent
 for cmd in cat ls grep find mkdir rm cp mv ln chmod chown touch \
            pwd echo env dirname basename head tail wc sort tr \
-           sed cut tee xargs id whoami uname readlink; do
+           sed cut tee xargs id whoami uname readlink curl jq; do
   for d in /bin /usr/bin; do
     if [ -f "$d/$cmd" ]; then
       mkdir -p "$R$d"
