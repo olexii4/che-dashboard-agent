@@ -25,7 +25,7 @@ copy_bin /usr/local/bin/claude $R/usr/local/bin/claude-bin
 # Coreutils and tools needed by Claude Code agent
 for cmd in cat ls grep find mkdir rm cp mv ln chmod chown touch \
            pwd echo env dirname basename head tail wc sort tr \
-           sed cut tee xargs id whoami uname readlink curl jq; do
+           sed cut tee xargs id whoami uname readlink curl jq git; do
   for d in /bin /usr/bin; do
     if [ -f "$d/$cmd" ]; then
       mkdir -p "$R$d"
@@ -34,6 +34,20 @@ for cmd in cat ls grep find mkdir rm cp mv ln chmod chown touch \
     fi
   done
 done
+
+# Git helper executables and templates
+if [ -d /usr/lib/git-core ]; then
+  mkdir -p $R/usr/lib/git-core
+  for helper in git git-remote-https git-remote-http git-clone-pack; do
+    if [ -f "/usr/lib/git-core/$helper" ]; then
+      copy_bin "/usr/lib/git-core/$helper" "$R/usr/lib/git-core/$helper"
+    fi
+  done
+fi
+if [ -d /usr/share/git-core/templates ]; then
+  mkdir -p $R/usr/share/git-core
+  cp -r /usr/share/git-core/templates $R/usr/share/git-core/
+fi
 
 # procps
 for cmd in ps kill; do

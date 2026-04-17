@@ -18,7 +18,7 @@ ARG TARGETARCH
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      curl ca-certificates python3 make g++ procps jq && \
+      curl ca-certificates python3 make g++ procps jq git && \
     rm -rf /var/lib/apt/lists/*
 
 # Download Claude Code native binary
