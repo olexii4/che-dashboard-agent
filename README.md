@@ -1,16 +1,16 @@
 # che-dashboard-agent
 
-A containerized AI coding assistant for the Eclipse Che Dashboard's Devfile Creator. Runs [Claude Code](https://claude.ai/claude-code) inside a [gritty](https://github.com/cloudcmd/gritty) terminal (xterm.js + node-pty + socket.io), embedded in the dashboard UI via an iframe.
+A containerized AI coding assistant for the Eclipse Che Dashboard's Devfile Creator. Runs [Claude Code](https://claude.ai/claude-code) inside a [ttyd](https://github.com/tsl0922/ttyd) web terminal (xterm.js + WebSocket), embedded in the dashboard UI via an iframe.
 
 ## What it does
 
-When a user creates a devfile in the Che Dashboard, they can start an AI agent that helps author and edit the devfile. The agent runs as a headless DevWorkspace (no IDE editor) and communicates with the dashboard through a reverse-proxied terminal.
+When a user creates a devfile in the Che Dashboard, they can start an AI agent that helps author and edit the devfile. The agent runs as a headless DevWorkspace (no IDE editor) and communicates with the dashboard through a web terminal.
 
 ## Repository Structure
 
 | Path | Description |
 |---|---|
-| `Dockerfile` | Multi-stage build: downloads Claude Code binary, installs gritty, produces a UBI10-minimal runtime image |
+| `Dockerfile` | Multi-stage build: downloads Claude Code binary + ttyd, produces a minimal scratch image |
 | `CLAUDE.md` | Agent skill instructions: how to read/write devfiles from the Kubernetes ConfigMap, devfile v2 format reference, best practices |
 | `devfile.yaml` | DevWorkspace template: ephemeral workspace with `che.eclipse.org/workspace-type: agent` label, internal WebSocket endpoint on port 8080 |
 | `settings.json` | Claude Code configuration (model selection) |
@@ -24,13 +24,13 @@ When a user creates a devfile in the Che Dashboard, they can start an AI agent t
 ```
 Dashboard UI (iframe)
     |
-    v  HTTP proxy (same-origin)
+    v  HTTP proxy (in-cluster)
 Dashboard Backend (devfileCreator.ts)
     |
-    v  in-cluster HTTP/socket.io
-Gritty (port 8080)
+    v  in-cluster WebSocket
+ttyd (port 8080)
     |
-    v  node-pty
+    v  PTY
 Claude Code CLI (/usr/local/bin/claude)
     |
     v  Kubernetes API (service account token)
@@ -48,10 +48,11 @@ CI builds are triggered on push to `main` via the [Next Build workflow](.github/
 
 ## Runtime Environment
 
-- **Base image**: `registry.access.redhat.com/ubi10/ubi-minimal:10.0`
-- **Runtime deps**: bash, Node.js, jq, python3
+- **Base image**: `scratch` (minimal — only binaries and shared libraries)
+- **Terminal server**: [ttyd](https://github.com/tsl0922/ttyd) v1.7.7 (single static binary, ~5 MB)
+- **Runtime deps**: bash, curl, git, jq (no Node.js required)
 - **OpenShift compatible**: handles arbitrary UIDs by redirecting `$HOME` to `/tmp/claude-home`
-- **Entry point**: starts gritty on port 8080 with bash shell, Claude Code on `$PATH`
+- **Entry point**: starts ttyd on port 8080 with bash shell, Claude Code on `$PATH`
 
 ## Configuration
 
@@ -124,7 +125,7 @@ data:
           "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/claudecode-color.svg",
           "docsUrl": "https://docs.anthropic.com/claude-code",
           "image": "quay.io/oorel/dashboard-agent",
-          "tag": "v19",
+          "tag": "next",
           "memoryLimit": "2Gi",
           "cpuLimit": "1",
           "terminalPort": 8080,
@@ -139,7 +140,7 @@ data:
 EOF
 ```
 
-To add more agents (e.g. Gemini CLI), append entries to the `agents` array in `registry.json`. Each agent needs its own container image with a gritty terminal server on the specified `terminalPort`.
+To add more agents (e.g. Gemini CLI), append entries to the `agents` array in `registry.json`. Each agent needs its own container image with a terminal server (e.g. ttyd) on the specified `terminalPort`.
 
 To remove all AI agent features from the dashboard, delete the ConfigMap:
 
