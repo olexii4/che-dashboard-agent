@@ -2,7 +2,7 @@
 set -e
 
 R=/rootfs
-mkdir -p $R/{bin,usr/bin,usr/local/bin,usr/local/lib/node_modules,etc/ssl,tmp,dev,proc,sys,root,home,var/tmp,opt/claude-skills}
+mkdir -p $R/{bin,usr/bin,usr/local/bin,etc/ssl,tmp,dev,proc,sys,root,home,var/tmp,opt/claude-skills}
 
 copy_bin() {
   local src=$1 dst=$2
@@ -16,11 +16,15 @@ copy_bin() {
   done
 }
 
-# Core binaries
-copy_bin /usr/local/bin/node   $R/usr/local/bin/node
-copy_bin /bin/bash             $R/bin/bash
-ln -sf bash $R/bin/sh
+# ttyd (static binary, no shared libs needed)
+copy_bin /usr/local/bin/ttyd $R/usr/local/bin/ttyd
+
+# Claude Code (native binary)
 copy_bin /usr/local/bin/claude $R/usr/local/bin/claude-bin
+
+# Bash
+copy_bin /bin/bash $R/bin/bash
+ln -sf bash $R/bin/sh
 
 # Coreutils and tools needed by Claude Code agent
 for cmd in cat ls grep find mkdir rm cp mv ln chmod chown touch \
@@ -57,20 +61,6 @@ for cmd in ps kill; do
       copy_bin "$d/$cmd" "$R$d/$cmd"
       break
     fi
-  done
-done
-
-# Gritty node_modules
-cp -r /usr/local/lib/node_modules/gritty $R/usr/local/lib/node_modules/
-ln -sf /usr/local/lib/node_modules/gritty/bin/gritty.js $R/usr/local/bin/gritty
-
-# node-pty native addon shared lib deps
-find $R/usr/local/lib/node_modules -name "*.node" | while read addon; do
-  ldd "$addon" 2>/dev/null | grep -oE '/[^ ]+' | while read lib; do
-    [ -f "$lib" ] || continue
-    d=$(dirname "$lib")
-    mkdir -p "$R$d"
-    cp -Ln "$lib" "$R$lib" 2>/dev/null || true
   done
 done
 
@@ -123,7 +113,7 @@ chmod +x $R/usr/local/bin/claude
 printf '# Claude Code agent shell\nexport CLAUDE_CODE_SKIP_PERMISSIONS_CONFIRMATION=1\n' \
   > $R/opt/claude-skills/.bashrc
 
-# Entrypoint script
+# Entrypoint script — starts ttyd terminal server
 cat > $R/usr/local/bin/entrypoint.sh << 'ENTRY'
 #!/bin/sh
 CLAUDE_TMP_HOME="/tmp/claude-home"
@@ -143,7 +133,7 @@ fi
 if [ ! -f "$HOME/.claude.json" ]; then
   cp /opt/claude-skills/claude.json "$HOME/.claude.json" 2>/dev/null || true
 fi
-exec /usr/local/bin/node /usr/local/lib/node_modules/gritty/bin/gritty.js --port 8080 --command /bin/bash
+exec /usr/local/bin/ttyd -p 8080 -W bash
 ENTRY
 chmod +x $R/usr/local/bin/entrypoint.sh
 
