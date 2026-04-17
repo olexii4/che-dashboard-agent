@@ -98,23 +98,62 @@ oc set image deployment/che-dashboard -n eclipse-che \
 oc rollout status deployment/che-dashboard -n eclipse-che --timeout=120s
 ```
 
-### 3. Create the agent DevWorkspace template
+### 3. Create the AI Agent Registry ConfigMap
 
-Apply the `devfile.yaml` as a DevWorkspace in the user's namespace. Set the `ANTHROPIC_API_KEY` before creating:
+The dashboard reads agent definitions from a ConfigMap in the Che namespace. Without this ConfigMap, the agent UI is hidden entirely.
 
 ```bash
-# Set the API key in the devfile
-sed -i "s/value: ''/value: 'sk-ant-...'/" devfile.yaml
-
-# Create the DevWorkspace
-kubectl apply -f devfile.yaml -n <user-namespace>
+kubectl apply -f - <<'EOF'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-agent-registry
+  namespace: eclipse-che
+  labels:
+    app.kubernetes.io/component: ai-agent-registry
+    app.kubernetes.io/part-of: che.eclipse.org
+data:
+  registry.json: |
+    {
+      "agents": [
+        {
+          "id": "anthropic/claude-code",
+          "name": "Claude Code",
+          "publisher": "Anthropic",
+          "description": "AI coding assistant with terminal — autonomous coding, debugging, and devfile generation.",
+          "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/claudecode-color.svg",
+          "docsUrl": "https://docs.anthropic.com/claude-code",
+          "image": "quay.io/oorel/dashboard-agent",
+          "tag": "v19",
+          "memoryLimit": "2Gi",
+          "cpuLimit": "1",
+          "terminalPort": 8080,
+          "env": [
+            { "name": "CLAUDE_CODE_SKIP_PERMISSIONS_CONFIRMATION", "value": "1" }
+          ],
+          "initCommand": "claude --bare --dangerously-skip-permissions --append-system-prompt-file \"$HOME/CLAUDE.md\""
+        }
+      ],
+      "defaultAgentId": "anthropic/claude-code"
+    }
+EOF
 ```
 
-The dashboard will automatically detect the agent workspace (by the `che.eclipse.org/workspace-type: agent` label) and show it in the Devfile Creator UI.
+To add more agents (e.g. Gemini CLI), append entries to the `agents` array in `registry.json`. Each agent needs its own container image with a gritty terminal server on the specified `terminalPort`.
 
-### 4. Verify
+To remove all AI agent features from the dashboard, delete the ConfigMap:
 
-Open the Che Dashboard, navigate to **Devfiles**, create or open a devfile, and click **Start Agent**. The agent terminal should appear in the right panel with Claude Code ready to assist.
+```bash
+kubectl delete configmap ai-agent-registry -n eclipse-che
+```
+
+### 4. Set the API key
+
+The `ANTHROPIC_API_KEY` must be available to the agent container. You can provide it via a Kubernetes Secret mounted into the user namespace, or add it directly to the agent's `env` array in the ConfigMap (not recommended for production).
+
+### 5. Verify
+
+Open the Che Dashboard, navigate to **Devfiles**, create or open a devfile, and click **Start Agent**. The dashboard reads the ConfigMap at startup and shows the agent panel only when agents are registered. The agent terminal should appear in the right panel with Claude Code ready to assist.
 
 ## License
 
