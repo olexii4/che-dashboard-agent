@@ -105,6 +105,12 @@ fi
 if [ ! -f "$HOME/.claude.json" ]; then
   cp /opt/claude-skills/claude.json "$HOME/.claude.json" 2>/dev/null || true
 fi
+if [ ! -f "$HOME/.claude/plugins/known_marketplaces.json" ]; then
+  echo '{}' > "$HOME/.claude/plugins/known_marketplaces.json" 2>/dev/null || true
+fi
+if [ ! -f "$HOME/.claude/plugins/installed_plugins.json" ]; then
+  echo '{"version":2,"plugins":{}}' > "$HOME/.claude/plugins/installed_plugins.json" 2>/dev/null || true
+fi
 exec "$SCRIPT_DIR/claude-bin" "$@"
 WRAPPER
 chmod +x $R/usr/local/bin/claude
@@ -132,6 +138,12 @@ if [ ! -f "$HOME/.claude/settings.json" ]; then
 fi
 if [ ! -f "$HOME/.claude.json" ]; then
   cp /opt/claude-skills/claude.json "$HOME/.claude.json" 2>/dev/null || true
+fi
+if [ ! -f "$HOME/.claude/plugins/known_marketplaces.json" ]; then
+  echo '{}' > "$HOME/.claude/plugins/known_marketplaces.json" 2>/dev/null || true
+fi
+if [ ! -f "$HOME/.claude/plugins/installed_plugins.json" ]; then
+  echo '{"version":2,"plugins":{}}' > "$HOME/.claude/plugins/installed_plugins.json" 2>/dev/null || true
 fi
 exec /usr/local/bin/ttyd -p 8080 -W bash
 ENTRY

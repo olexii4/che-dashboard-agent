@@ -8,20 +8,20 @@ User devfiles are stored in a Kubernetes ConfigMap named `devfile-creator-storag
 
 ### Your Environment
 
-When running inside a DevWorkspace, the following environment variables are available:
-- `DEVWORKSPACE_NAMESPACE` — the Kubernetes namespace you are running in (this is the user's namespace)
-- `KUBERNETES_SERVICE_HOST` / `KUBERNETES_SERVICE_PORT` — the in-cluster Kubernetes API server
-- The service account token is mounted at `/var/run/secrets/kubernetes.io/serviceaccount/token`
+When running inside an agent pod, the following environment variables are available:
+- `AGENT_NAMESPACE` — the Kubernetes namespace you are running in (this is the user's namespace)
+- `KUBERNETES_API_URL` — the Kubernetes API server URL (e.g., `https://api.crc.testing:6443`)
+- `CHE_USER_TOKEN_FILE` — path to the file containing the user's authentication token (default: `/var/run/secrets/che/token/token`)
 
 ### Method 1: Direct Kubernetes Access (Preferred)
 
-You can read and modify devfiles directly from the ConfigMap using `curl` with the in-cluster service account:
+You can read and modify devfiles directly from the ConfigMap using `curl` with the user's token:
 
 ```bash
 # Set variables
-NAMESPACE="${DEVWORKSPACE_NAMESPACE}"
-TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
-K8S_API="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}"
+NAMESPACE="${AGENT_NAMESPACE}"
+TOKEN="$(cat ${CHE_USER_TOKEN_FILE})"
+K8S_API="${KUBERNETES_API_URL}"
 CM_NAME="devfile-creator-storage"
 
 # List all devfiles (each key in .data is a UUID, each value is YAML content)
@@ -51,24 +51,24 @@ The dashboard backend also exposes a REST API. The dashboard service is availabl
 
 ```bash
 DASHBOARD_URL="http://che-dashboard.eclipse-che.svc:8080"
-NAMESPACE="${DEVWORKSPACE_NAMESPACE}"
+NAMESPACE="${AGENT_NAMESPACE}"
 
 # List all devfiles (returns JSON with .devfiles array)
-curl -sS "${DASHBOARD_URL}/dashboard/api/devfile-creator/namespace/${NAMESPACE}"
+curl -sS "${DASHBOARD_URL}/dashboard/api/devfiles/namespace/${NAMESPACE}"
 
 # Create a new devfile
 curl -sS -X POST -H "Content-Type: application/json" \
-  "${DASHBOARD_URL}/dashboard/api/devfile-creator/namespace/${NAMESPACE}" \
+  "${DASHBOARD_URL}/dashboard/api/devfiles/namespace/${NAMESPACE}" \
   -d '{"content":"<YAML content>"}'
 
 # Update a devfile
 curl -sS -X PUT -H "Content-Type: application/json" \
-  "${DASHBOARD_URL}/dashboard/api/devfile-creator/namespace/${NAMESPACE}/<UUID>" \
+  "${DASHBOARD_URL}/dashboard/api/devfiles/namespace/${NAMESPACE}/<UUID>" \
   -d '{"content":"<YAML content>"}'
 
 # Delete a devfile
 curl -sS -X DELETE \
-  "${DASHBOARD_URL}/dashboard/api/devfile-creator/namespace/${NAMESPACE}/<UUID>"
+  "${DASHBOARD_URL}/dashboard/api/devfiles/namespace/${NAMESPACE}/<UUID>"
 ```
 
 ### Workflow for Editing a Devfile

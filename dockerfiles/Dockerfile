@@ -45,7 +45,7 @@ RUN set -e && \
     chmod +x /usr/local/bin/ttyd
 
 # Collect minimal rootfs — only binaries + shared libs needed at runtime
-COPY collect-rootfs.sh /tmp/collect-rootfs.sh
+COPY scripts/collect-rootfs.sh /tmp/collect-rootfs.sh
 RUN chmod +x /tmp/collect-rootfs.sh && bash /tmp/collect-rootfs.sh
 
 # Stage 2: Minimal image from scratch
@@ -55,8 +55,8 @@ COPY --from=builder /rootfs/ /
 
 # Claude Code config files
 COPY CLAUDE.md /opt/claude-skills/CLAUDE.md
-COPY settings.json /opt/claude-skills/settings.json
-COPY claude.json /opt/claude-skills/claude.json
+COPY settings/claude/settings.json /opt/claude-skills/settings.json
+COPY settings/claude/claude.json /opt/claude-skills/claude.json
 
 ENV PATH="/usr/local/bin:/usr/bin:/bin" \
     HOME="/root" \

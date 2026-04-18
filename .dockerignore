@@ -5,5 +5,8 @@
 *.md
 !CLAUDE.md
 LICENSE
-devfile.yaml
+docs
+templates
+openspec
+skills
 terminal-server

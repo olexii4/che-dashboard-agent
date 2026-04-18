@@ -50,7 +50,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile
+          file: ./dockerfiles/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           provenance: false

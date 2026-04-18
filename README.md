@@ -10,13 +10,14 @@ When a user creates a devfile in the Che Dashboard, they can start an AI agent t
 
 | Path | Description |
 |---|---|
-| `Dockerfile` | Multi-stage build: downloads Claude Code binary + ttyd, produces a minimal scratch image |
-| `CLAUDE.md` | Agent skill instructions: how to read/write devfiles from the Kubernetes ConfigMap, devfile v2 format reference, best practices |
-| `devfile.yaml` | DevWorkspace template: ephemeral workspace with `che.eclipse.org/workspace-type: agent` label, internal WebSocket endpoint on port 8080 |
-| `settings.json` | Claude Code configuration (model selection) |
-| `claude.json` | Onboarding state: skips the first-run wizard |
+| `dockerfiles/Dockerfile` | Multi-stage build: downloads Claude Code binary + ttyd, produces a minimal scratch image |
+| `scripts/collect-rootfs.sh` | Collects minimal rootfs for the scratch image (binaries, shared libs, wrapper scripts) |
+| `settings/claude/settings.json` | Claude Code configuration (model selection) |
+| `settings/claude/claude.json` | Onboarding state: skips the first-run wizard |
+| `templates/devfile.yaml` | DevWorkspace template: ephemeral workspace with agent label, internal WebSocket endpoint |
+| `CLAUDE.md` | Agent skill instructions: devfile format reference, Kubernetes API access, best practices |
 | `skills/claude/` | Devfile assistant skill: schema reference, common patterns, recommended images |
-| `terminal-server/` | Alternative WebSocket terminal server (node-pty + ws) with output batching and flow control |
+| `docs/` | Documentation: file descriptions and repo review |
 | `.cursor/rules/` | Cursor IDE rules for development conventions |
 
 ## Architecture
@@ -25,7 +26,7 @@ When a user creates a devfile in the Che Dashboard, they can start an AI agent t
 Dashboard UI (iframe)
     |
     v  HTTP proxy (in-cluster)
-Dashboard Backend (devfileCreator.ts)
+Dashboard Backend (agents.ts)
     |
     v  in-cluster WebSocket
 ttyd (port 8080)
@@ -33,14 +34,14 @@ ttyd (port 8080)
     v  PTY
 Claude Code CLI (/usr/local/bin/claude)
     |
-    v  Kubernetes API (service account token)
+    v  Kubernetes API (user token)
 ConfigMap "devfile-creator-storage"
 ```
 
 ## Build and Push
 
 ```bash
-podman build -t quay.io/oorel/dashboard-agent:next .
+podman build -f dockerfiles/Dockerfile -t quay.io/oorel/dashboard-agent:next .
 podman push quay.io/oorel/dashboard-agent:next
 ```
 
@@ -58,11 +59,11 @@ CI builds are triggered on push to `main` via the [Next Build workflow](.github/
 
 | File | Purpose |
 |---|---|
-| `settings.json` | Claude Code model and environment settings |
-| `claude.json` | Onboarding state to skip first-run wizard |
+| `settings/claude/settings.json` | Claude Code model and environment settings |
+| `settings/claude/claude.json` | Onboarding state to skip first-run wizard |
 | `CLAUDE.md` | Agent system prompt with devfile knowledge and Kubernetes API access patterns |
 
-The `ANTHROPIC_API_KEY` environment variable must be set in the DevWorkspace (via the `devfile.yaml` or a Kubernetes Secret).
+The `ANTHROPIC_API_KEY` environment variable must be set in the DevWorkspace (via the `templates/devfile.yaml` or a Kubernetes Secret).
 
 ## Patching Eclipse Che with the Dashboard Agent
 
@@ -72,7 +73,7 @@ The dashboard agent requires a patched [che-dashboard](https://github.com/eclips
 
 ```bash
 # Dashboard agent
-podman build -t quay.io/oorel/dashboard-agent:latest .
+podman build -f dockerfiles/Dockerfile -t quay.io/oorel/dashboard-agent:latest .
 podman push quay.io/oorel/dashboard-agent:latest
 
 # Patched che-dashboard (from the che-dashboard repo, branch devfile_creator)
