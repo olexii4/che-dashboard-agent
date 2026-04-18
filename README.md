@@ -99,7 +99,7 @@ data:
           "docsUrl": "https://docs.anthropic.com/claude-code",
           "image": "quay.io/oorel/dashboard-agent",
           "tag": "next",
-          "memoryLimit": "2Gi",
+          "memoryLimit": "256Mi",
           "cpuLimit": "1",
           "terminalPort": 8080,
           "env": [

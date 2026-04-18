@@ -34,6 +34,3 @@ components:
           targetPort: 8080
           exposure: internal
           protocol: ws
-      env:
-        - name: ANTHROPIC_API_KEY
-          value: ''
