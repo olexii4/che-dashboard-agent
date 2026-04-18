@@ -4,7 +4,7 @@ A containerized AI coding assistant for the Eclipse Che Dashboard's Devfile Crea
 
 ## What it does
 
-When a user creates a devfile in the Che Dashboard, they can start an AI agent that helps author and edit the devfile. The dashboard backend creates a dedicated Pod + ClusterIP Service for the agent (not a DevWorkspace) with a heartbeat-based TTL (20 min). The agent communicates with the dashboard through a web terminal proxied over WebSocket.
+When a user creates a devfile in the Che Dashboard, they can start an AI agent that helps author and edit the devfile. The dashboard backend creates a dedicated Pod + ClusterIP Service for the agent (not a DevWorkspace). The agent communicates with the dashboard through a web terminal proxied over WebSocket.
 
 ## Repository Structure
 
