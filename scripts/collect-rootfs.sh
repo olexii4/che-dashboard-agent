@@ -8,6 +8,7 @@ copy_bin() {
   local src=$1 dst=$2
   [ -f "$src" ] || return 0
   cp -L "$src" "$dst"
+  strip --strip-unneeded "$dst" 2>/dev/null || true
   ldd "$src" 2>/dev/null | grep -oE '/[^ ]+' | while read lib; do
     [ -f "$lib" ] || continue
     d=$(dirname "$lib")
@@ -39,18 +40,14 @@ for cmd in cat ls grep find mkdir rm cp mv ln chmod chown touch \
   done
 done
 
-# Git helper executables and templates
+# Git helper executables (only https — http is not needed)
 if [ -d /usr/lib/git-core ]; then
   mkdir -p $R/usr/lib/git-core
-  for helper in git git-remote-https git-remote-http git-clone-pack; do
+  for helper in git git-remote-https; do
     if [ -f "/usr/lib/git-core/$helper" ]; then
       copy_bin "/usr/lib/git-core/$helper" "$R/usr/lib/git-core/$helper"
     fi
   done
-fi
-if [ -d /usr/share/git-core/templates ]; then
-  mkdir -p $R/usr/share/git-core
-  cp -r /usr/share/git-core/templates $R/usr/share/git-core/
 fi
 
 # procps
@@ -76,8 +73,9 @@ done
 # SSL certificates
 cp -rL /etc/ssl $R/etc/
 
-# Minimal /etc
+# Minimal /etc — includes user 1001 for non-root operation
 echo 'root:x:0:0:root:/root:/bin/bash' > $R/etc/passwd
+echo 'agent:x:1001:0:agent:/tmp/claude-home:/bin/bash' >> $R/etc/passwd
 echo 'nobody:x:65534:65534:nobody:/nonexistent:/bin/false' >> $R/etc/passwd
 echo 'root:x:0:' > $R/etc/group
 echo 'nobody:x:65534:' >> $R/etc/group
@@ -86,31 +84,33 @@ echo 'hosts: files dns' > $R/etc/nsswitch.conf
 # Writable temp dirs
 chmod 1777 $R/tmp $R/var/tmp
 
-# Claude wrapper script
-cat > $R/usr/local/bin/claude << 'WRAPPER'
+# Shared init script — used by both entrypoint and claude wrapper
+cat > $R/usr/local/bin/init-claude.sh << 'INIT'
 #!/bin/sh
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CLAUDE_TMP_HOME="/tmp/claude-home"
 if [ ! -w "$HOME" ]; then
   export HOME="$CLAUDE_TMP_HOME"
 fi
 mkdir -p "$HOME/.claude/sessions" "$HOME/.claude/plugins" "$HOME/.local/bin"
-export PATH="$HOME/.local/bin:$SCRIPT_DIR:$PATH"
-if [ ! -f "$HOME/CLAUDE.md" ]; then
-  cp /opt/claude-skills/CLAUDE.md "$HOME/CLAUDE.md" 2>/dev/null || true
-fi
-if [ ! -f "$HOME/.claude/settings.json" ]; then
-  cp /opt/claude-skills/settings.json "$HOME/.claude/settings.json" 2>/dev/null || true
-fi
-if [ ! -f "$HOME/.claude.json" ]; then
-  cp /opt/claude-skills/claude.json "$HOME/.claude.json" 2>/dev/null || true
-fi
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export CLAUDE_CODE_SKIP_PERMISSIONS_CONFIRMATION=1
+cp /opt/claude-skills/CLAUDE.md "$HOME/CLAUDE.md" 2>/dev/null || true
+cp /opt/claude-skills/settings.json "$HOME/.claude/settings.json" 2>/dev/null || true
+cp /opt/claude-skills/claude.json "$HOME/.claude.json" 2>/dev/null || true
 if [ ! -f "$HOME/.claude/plugins/known_marketplaces.json" ]; then
   echo '{}' > "$HOME/.claude/plugins/known_marketplaces.json" 2>/dev/null || true
 fi
 if [ ! -f "$HOME/.claude/plugins/installed_plugins.json" ]; then
   echo '{"version":2,"plugins":{}}' > "$HOME/.claude/plugins/installed_plugins.json" 2>/dev/null || true
 fi
+INIT
+chmod +x $R/usr/local/bin/init-claude.sh
+
+# Claude wrapper script
+cat > $R/usr/local/bin/claude << 'WRAPPER'
+#!/bin/sh
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/init-claude.sh"
 exec "$SCRIPT_DIR/claude-bin" "$@"
 WRAPPER
 chmod +x $R/usr/local/bin/claude
@@ -122,29 +122,8 @@ printf '# Claude Code agent shell\nexport CLAUDE_CODE_SKIP_PERMISSIONS_CONFIRMAT
 # Entrypoint script — starts ttyd terminal server
 cat > $R/usr/local/bin/entrypoint.sh << 'ENTRY'
 #!/bin/sh
-CLAUDE_TMP_HOME="/tmp/claude-home"
-if [ ! -w "$HOME" ]; then
-  export HOME="$CLAUDE_TMP_HOME"
-fi
-mkdir -p "$HOME/.claude/sessions" "$HOME/.claude/plugins" "$HOME/.local/bin"
-export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-export CLAUDE_CODE_SKIP_PERMISSIONS_CONFIRMATION=1
+. /usr/local/bin/init-claude.sh
 cp /opt/claude-skills/.bashrc "$HOME/.bashrc" 2>/dev/null || true
-if [ ! -f "$HOME/CLAUDE.md" ]; then
-  cp /opt/claude-skills/CLAUDE.md "$HOME/CLAUDE.md" 2>/dev/null || true
-fi
-if [ ! -f "$HOME/.claude/settings.json" ]; then
-  cp /opt/claude-skills/settings.json "$HOME/.claude/settings.json" 2>/dev/null || true
-fi
-if [ ! -f "$HOME/.claude.json" ]; then
-  cp /opt/claude-skills/claude.json "$HOME/.claude.json" 2>/dev/null || true
-fi
-if [ ! -f "$HOME/.claude/plugins/known_marketplaces.json" ]; then
-  echo '{}' > "$HOME/.claude/plugins/known_marketplaces.json" 2>/dev/null || true
-fi
-if [ ! -f "$HOME/.claude/plugins/installed_plugins.json" ]; then
-  echo '{"version":2,"plugins":{}}' > "$HOME/.claude/plugins/installed_plugins.json" 2>/dev/null || true
-fi
 exec /usr/local/bin/ttyd -p 8080 -W bash
 ENTRY
 chmod +x $R/usr/local/bin/entrypoint.sh

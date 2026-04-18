@@ -3,10 +3,7 @@
 .idea
 .cursor
 *.md
-!CLAUDE.md
+!skills/CLAUDE.md
 LICENSE
 docs
-templates
-openspec
-skills
-terminal-server
+devfile.yaml

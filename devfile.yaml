@@ -1,0 +1,39 @@
+# Dashboard Agent — reference devfile
+#
+# This file is NOT consumed by the dashboard backend. The backend creates
+# agent pods directly via the Kubernetes API (see agentPod.ts) using
+# configuration from the ai-agent-registry ConfigMap.
+#
+# This devfile serves as a standalone development/testing reference:
+# it can be used with `oc apply` or `dw` CLI to launch the agent
+# container manually, independent of the dashboard.
+#
+# At runtime the backend creates a Pod + ClusterIP Service with:
+#   - labels: app.kubernetes.io/component=ai-agent, che.eclipse.org/agent-id
+#   - a user-token Secret mounted at /var/run/secrets/che/token
+#   - env vars: AGENT_NAMESPACE, KUBERNETES_API_URL, CHE_USER_TOKEN_FILE
+#   - heartbeat-based TTL cleanup (20 min without heartbeat → deleted)
+#   - ownerReferences so the Service and Secret are GC'd with the Pod
+
+schemaVersion: 2.2.2
+metadata:
+  name: devfile-agent
+  attributes:
+    controller.devfile.io/storage-type: ephemeral
+  labels:
+    che.eclipse.org/type: agent
+components:
+  - name: dashboard-agent
+    container:
+      image: quay.io/oorel/dashboard-agent:latest
+      memoryLimit: 256Mi
+      cpuLimit: '1'
+      mountSources: false
+      endpoints:
+        - name: terminal-server
+          targetPort: 8080
+          exposure: internal
+          protocol: ws
+      env:
+        - name: ANTHROPIC_API_KEY
+          value: ''
