@@ -20,8 +20,15 @@ copy_bin() {
 # ttyd (static binary, no shared libs needed)
 copy_bin /usr/local/bin/ttyd $R/usr/local/bin/ttyd
 
-# Claude Code (native binary)
-copy_bin /usr/local/bin/claude $R/usr/local/bin/claude-bin
+# Claude Code — Bun standalone executable; do NOT strip (stripping removes
+# the appended application bytecode, leaving only the bare Bun runtime).
+cp -L /usr/local/bin/claude $R/usr/local/bin/claude-bin
+ldd /usr/local/bin/claude 2>/dev/null | grep -oE '/[^ ]+' | while read lib; do
+  [ -f "$lib" ] || continue
+  d=$(dirname "$lib")
+  mkdir -p "$R$d"
+  cp -Ln "$lib" "$R$lib" 2>/dev/null || true
+done
 
 # Bash
 copy_bin /bin/bash $R/bin/bash
