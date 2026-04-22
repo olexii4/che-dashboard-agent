@@ -99,7 +99,7 @@ data:
           "docsUrl": "https://docs.anthropic.com/claude-code",
           "image": "quay.io/oorel/dashboard-agent",
           "tag": "next",
-          "memoryLimit": "256Mi",
+          "memoryLimit": "512Mi",
           "cpuLimit": "1",
           "terminalPort": 8080,
           "env": [
@@ -132,10 +132,6 @@ The image writes only to `/tmp/claude-home` — mount it as `emptyDir` if using 
 ### 2. Set the API key
 
 The `ANTHROPIC_API_KEY` must be available to the agent container. You can provide it via a Kubernetes Secret mounted into the user namespace, or add it directly to the agent's `env` array in the ConfigMap (not recommended for production).
-
-### 3. Verify
-
-Open the Che Dashboard, navigate to **Devfiles**, create or open a devfile, and click **Start Agent**. The dashboard reads the ConfigMap at startup and shows the agent panel only when agents are registered. The agent terminal should appear in the right panel with Claude Code ready to assist.
 
 ## License
 

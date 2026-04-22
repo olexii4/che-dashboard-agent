@@ -98,14 +98,15 @@ CLAUDE_TMP_HOME="/tmp/claude-home"
 if [ ! -w "$HOME" ]; then
   export HOME="$CLAUDE_TMP_HOME"
 fi
-mkdir -p "$HOME/.claude/sessions" "$HOME/.claude/plugins" "$HOME/.local/bin"
+mkdir -p "$HOME/.claude/sessions" "$HOME/.claude/plugins/marketplaces/claude-plugins-official" "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 export CLAUDE_CODE_SKIP_PERMISSIONS_CONFIRMATION=1
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 cp /opt/claude-skills/CLAUDE.md "$HOME/CLAUDE.md" 2>/dev/null || true
 cp /opt/claude-skills/settings.json "$HOME/.claude/settings.json" 2>/dev/null || true
 cp /opt/claude-skills/claude.json "$HOME/.claude.json" 2>/dev/null || true
 if [ ! -f "$HOME/.claude/plugins/known_marketplaces.json" ]; then
-  echo '{}' > "$HOME/.claude/plugins/known_marketplaces.json" 2>/dev/null || true
+  echo "{\"claude-plugins-official\":{\"source\":{\"source\":\"github\",\"repo\":\"anthropics/claude-plugins-official\"},\"installLocation\":\"$HOME/.claude/plugins/marketplaces/claude-plugins-official\",\"lastUpdated\":\"2026-04-19T00:00:00.000Z\"}}" > "$HOME/.claude/plugins/known_marketplaces.json" 2>/dev/null || true
 fi
 if [ ! -f "$HOME/.claude/plugins/installed_plugins.json" ]; then
   echo '{"version":2,"plugins":{}}' > "$HOME/.claude/plugins/installed_plugins.json" 2>/dev/null || true
