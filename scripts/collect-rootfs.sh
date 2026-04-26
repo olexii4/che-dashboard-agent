@@ -73,7 +73,7 @@ done
 
 # Runtime-loaded libraries not detected by ldd
 for pattern in "librt.so*" "librt-*.so*"; do
-  find /lib* -name "$pattern" 2>/dev/null | while read f; do
+  find /lib* /usr/lib* -name "$pattern" 2>/dev/null | while read f; do
     d=$(dirname "$f")
     mkdir -p "$R$d"
     cp -Ln "$f" "$R$d/" 2>/dev/null || true
