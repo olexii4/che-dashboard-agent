@@ -278,7 +278,7 @@ attributes:
 
 ### CRITICAL Rules
 
-1. **NEVER use `gh` (GitHub CLI).** The `gh` command is NOT available in this environment and will fail with `command not found`. To interact with GitHub repositories, use `git` commands directly (`git clone`, `git log`, `git remote -v`, etc.) or the Kubernetes/Dashboard APIs. To fetch repository metadata, use `curl` with the GitHub REST API (e.g., `curl -sS https://api.github.com/repos/OWNER/REPO`).
+1. **NEVER use `gh` (GitHub CLI) or `python3`/`python`.** These commands are NOT available in this environment. For GitHub, use `git` commands or `curl` with the GitHub REST API. For JSON manipulation, use `jq` (available). For example, instead of `python3 -c "import json; ..."`, use `jq` filters like `jq '.data["key"] = "value"'`.
 2. **NEVER add `events.postStart` or `events.preStart` unless the user explicitly asks for it.** PostStart hooks run as Kubernetes lifecycle hooks and will **fail the entire workspace** if the command exits non-zero. Commands that depend on project sources (e.g. `go mod download`, `npm install`) will fail because the project may not be cloned yet when the postStart hook runs. Instead, let users run setup commands manually after the workspace starts.
 3. Always use `schemaVersion: 2.2.2` (latest stable) unless the user requests 2.3.0.
 4. Set `mountSources: true` on the main dev container so project files are available at `/projects`.
