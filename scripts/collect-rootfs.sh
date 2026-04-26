@@ -71,6 +71,15 @@ for cmd in ps kill; do
   done
 done
 
+# Runtime-loaded libraries not detected by ldd
+for pattern in "librt.so*" "librt-*.so*"; do
+  find /lib* -name "$pattern" 2>/dev/null | while read f; do
+    d=$(dirname "$f")
+    mkdir -p "$R$d"
+    cp -Ln "$f" "$R$d/" 2>/dev/null || true
+  done
+done
+
 # NSS libraries for DNS resolution
 for pattern in "libnss_dns*" "libnss_files*" "libresolv*"; do
   find /lib* -name "$pattern" 2>/dev/null | while read f; do
