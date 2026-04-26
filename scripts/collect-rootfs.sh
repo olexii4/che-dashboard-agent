@@ -114,6 +114,19 @@ fi
 if [ ! -f "$HOME/.claude/plugins/installed_plugins.json" ]; then
   echo '{"version":2,"plugins":{}}' > "$HOME/.claude/plugins/installed_plugins.json" 2>/dev/null || true
 fi
+# Configure kubectl with the cluster API and user token
+if [ -n "$KUBERNETES_API_URL" ]; then
+  TOKEN_FILE="${CHE_USER_TOKEN_FILE:-/var/run/secrets/che/token/token}"
+  KUBECONFIG="$HOME/.kube/config"
+  export KUBECONFIG
+  mkdir -p "$HOME/.kube"
+  kubectl config set-cluster che --server="$KUBERNETES_API_URL" --insecure-skip-tls-verify=true >/dev/null 2>&1
+  if [ -f "$TOKEN_FILE" ]; then
+    kubectl config set-credentials che-user --token="$(cat "$TOKEN_FILE")" >/dev/null 2>&1
+  fi
+  kubectl config set-context che --cluster=che --user=che-user --namespace="${AGENT_NAMESPACE:-default}" >/dev/null 2>&1
+  kubectl config use-context che >/dev/null 2>&1
+fi
 INIT
 chmod +x $R/usr/local/bin/init-claude.sh
 
