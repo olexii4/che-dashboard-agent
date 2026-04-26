@@ -42,6 +42,13 @@ RUN set -e && \
       "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.${TTYD_ARCH}" && \
     chmod +x /usr/local/bin/ttyd
 
+# Download kubectl
+RUN set -e && \
+    KUBE_VERSION=$(curl -fsSL https://dl.k8s.io/release/stable.txt) && \
+    curl -fsSL -o /usr/local/bin/kubectl \
+      "https://dl.k8s.io/release/${KUBE_VERSION}/bin/linux/${TARGETARCH}/kubectl" && \
+    chmod +x /usr/local/bin/kubectl
+
 # Collect minimal rootfs — only binaries + shared libs needed at runtime
 COPY scripts/collect-rootfs.sh /tmp/collect-rootfs.sh
 RUN chmod +x /tmp/collect-rootfs.sh && bash /tmp/collect-rootfs.sh
