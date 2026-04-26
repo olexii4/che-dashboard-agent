@@ -71,8 +71,9 @@ for cmd in ps kill; do
   done
 done
 
-# Runtime-loaded libraries not detected by ldd
-for pattern in "librt.so*" "librt-*.so*"; do
+# glibc compat stubs merged into libc.so.6 in glibc 2.34+ but still
+# needed by binaries linked against older glibc (e.g. Bun/Claude Code)
+for pattern in "librt.so*" "libpthread.so*" "libdl.so*" "libm.so*" "libutil.so*"; do
   find /lib* /usr/lib* -name "$pattern" 2>/dev/null | while read f; do
     d=$(dirname "$f")
     mkdir -p "$R$d"
