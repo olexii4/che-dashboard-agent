@@ -49,16 +49,6 @@ RUN set -e && \
       "https://dl.k8s.io/release/${KUBE_VERSION}/bin/linux/${TARGETARCH}/kubectl" && \
     chmod +x /usr/local/bin/kubectl
 
-# Download GitHub CLI (gh)
-RUN set -e && \
-    GH_VERSION=$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | grep '"tag_name"' | sed 's/.*"v\(.*\)".*/\1/') && \
-    curl -fsSL -o /tmp/gh.tar.gz \
-      "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${TARGETARCH}.tar.gz" && \
-    tar -xzf /tmp/gh.tar.gz -C /tmp && \
-    mv /tmp/gh_${GH_VERSION}_linux_${TARGETARCH}/bin/gh /usr/local/bin/gh && \
-    chmod +x /usr/local/bin/gh && \
-    rm -rf /tmp/gh*
-
 # Collect minimal rootfs — only binaries + shared libs needed at runtime
 COPY scripts/collect-rootfs.sh /tmp/collect-rootfs.sh
 RUN chmod +x /tmp/collect-rootfs.sh && bash /tmp/collect-rootfs.sh

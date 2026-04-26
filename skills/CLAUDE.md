@@ -277,18 +277,19 @@ attributes:
 
 ### CRITICAL Rules
 
-1. **NEVER add `events.postStart` or `events.preStart` unless the user explicitly asks for it.** PostStart hooks run as Kubernetes lifecycle hooks and will **fail the entire workspace** if the command exits non-zero. Commands that depend on project sources (e.g. `go mod download`, `npm install`) will fail because the project may not be cloned yet when the postStart hook runs. Instead, let users run setup commands manually after the workspace starts.
-2. Always use `schemaVersion: 2.2.2` (latest stable) unless the user requests 2.3.0.
-3. Set `mountSources: true` on the main dev container so project files are available at `/projects`.
-4. Use `${PROJECT_SOURCE}` variable for `workingDir` in commands (resolves to the project directory).
-5. Set reasonable `memoryLimit` and `cpuLimit` for containers.
-6. Use UBI-based container images for Red Hat compatibility (prefer `ubi9` over `ubi8`).
-7. Define `build` and `run` command groups with `isDefault: true`.
-8. Use `endpoints` for any ports that need to be accessible.
-9. Use `volume` components for caches (Maven, npm, pip) that should persist.
-10. **NEVER use this agent's own image or gritty/terminal images in generated devfiles.** The devfile should use development images appropriate for the user's project (e.g., UDI, Node.js, Go, Python images).
-11. **The `command` and `args` fields on containers:** Dev images like UDI already have a long-running entrypoint, so `args` is not needed for them. However, **standard OS images** (e.g., `debian`, `ubuntu`, `alpine`, `fedora`, `centos`) and many **language runtime images** (e.g., `docker.io/node`, `docker.io/python`, `docker.io/golang`) will exit immediately without `args`, causing `CrashLoopBackOff`. For these images, you **MUST** add `args` to keep the container alive. See the "Container `args` Field" section below for details and examples.
-12. **All `name` fields (projects, components, commands) MUST match the pattern `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`.** This means: lowercase letters, digits, and hyphens only; must start and end with a letter or digit. Convert names like `Angular_Tutorial_App` → `angular-tutorial-app`, `My Project` → `my-project`. To convert a Git repo name: lowercase it, replace any character that is not `a-z`, `0-9`, or `-` with `-`, strip leading/trailing hyphens.
+1. **NEVER use `gh` (GitHub CLI).** The `gh` command is NOT available in this environment and will fail with `command not found`. To interact with GitHub repositories, use `git` commands directly (`git clone`, `git log`, `git remote -v`, etc.) or the Kubernetes/Dashboard APIs. To fetch repository metadata, use `curl` with the GitHub REST API (e.g., `curl -sS https://api.github.com/repos/OWNER/REPO`).
+2. **NEVER add `events.postStart` or `events.preStart` unless the user explicitly asks for it.** PostStart hooks run as Kubernetes lifecycle hooks and will **fail the entire workspace** if the command exits non-zero. Commands that depend on project sources (e.g. `go mod download`, `npm install`) will fail because the project may not be cloned yet when the postStart hook runs. Instead, let users run setup commands manually after the workspace starts.
+3. Always use `schemaVersion: 2.2.2` (latest stable) unless the user requests 2.3.0.
+4. Set `mountSources: true` on the main dev container so project files are available at `/projects`.
+5. Use `${PROJECT_SOURCE}` variable for `workingDir` in commands (resolves to the project directory).
+6. Set reasonable `memoryLimit` and `cpuLimit` for containers.
+7. Use UBI-based container images for Red Hat compatibility (prefer `ubi9` over `ubi8`).
+8. Define `build` and `run` command groups with `isDefault: true`.
+9. Use `endpoints` for any ports that need to be accessible.
+10. Use `volume` components for caches (Maven, npm, pip) that should persist.
+11. **NEVER use this agent's own image or gritty/terminal images in generated devfiles.** The devfile should use development images appropriate for the user's project (e.g., UDI, Node.js, Go, Python images).
+12. **The `command` and `args` fields on containers:** Dev images like UDI already have a long-running entrypoint, so `args` is not needed for them. However, **standard OS images** (e.g., `debian`, `ubuntu`, `alpine`, `fedora`, `centos`) and many **language runtime images** (e.g., `docker.io/node`, `docker.io/python`, `docker.io/golang`) will exit immediately without `args`, causing `CrashLoopBackOff`. For these images, you **MUST** add `args` to keep the container alive. See the "Container `args` Field" section below for details and examples.
+13. **All `name` fields (projects, components, commands) MUST match the pattern `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`.** This means: lowercase letters, digits, and hyphens only; must start and end with a letter or digit. Convert names like `Angular_Tutorial_App` → `angular-tutorial-app`, `My Project` → `my-project`. To convert a Git repo name: lowercase it, replace any character that is not `a-z`, `0-9`, or `-` with `-`, strip leading/trailing hyphens.
 
 ## Real-World Devfile Examples
 
