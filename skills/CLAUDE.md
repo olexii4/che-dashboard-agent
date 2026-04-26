@@ -132,16 +132,16 @@ components:
 
 The `args` field overrides the container image's default `CMD`. This is essential when using images that don't have a long-running entrypoint — without it, the container exits immediately and Kubernetes reports `CrashLoopBackOff`.
 
-**When to use `args`:**
-- Standard OS images: `debian`, `ubuntu`, `alpine`, `fedora`, `centos`, `busybox`
-- Vanilla language runtimes from Docker Hub: `node`, `python`, `golang`, `ruby`, `rust`
-- Any image whose default command exits immediately (e.g., prints help text and quits)
+**Rule: ALWAYS add `args` to every container component EXCEPT `quay.io/devfile/universal-developer-image`.**
 
-**When NOT to use `args`:**
-- UDI (`quay.io/devfile/universal-developer-image`) — already has a long-running entrypoint
-- Red Hat UBI dev images (`ubi9/nodejs-20`, `ubi9/python-312`, etc.) — already configured for Che
-- Database / service images (`mysql`, `postgres`, `redis`, `mongo`, `mariadb`, etc.) — they start a daemon by default
-- Custom dev images that already include a shell entrypoint
+This includes:
+- Standard OS images: `debian`, `ubuntu`, `alpine`, `fedora`, `centos`, `busybox`
+- Language runtimes from Docker Hub: `node`, `python`, `golang`, `ruby`, `rust`
+- Database / service images: `mysql`, `postgres`, `redis`, `mongo`, `mariadb`, etc.
+- Any other third-party or custom image
+
+**The ONLY exception — do NOT add `args`:**
+- `quay.io/devfile/universal-developer-image` — already has a long-running entrypoint built for Che
 
 **The standard pattern** to keep a container alive:
 ```yaml
@@ -279,17 +279,21 @@ attributes:
 ### CRITICAL Rules
 
 1. **NEVER use `gh` (GitHub CLI) or `python3`/`python`.** These commands are NOT available in this environment. For GitHub, use `git` commands or `curl` with the GitHub REST API. For JSON manipulation, use `jq` (available). For example, instead of `python3 -c "import json; ..."`, use `jq` filters like `jq '.data["key"] = "value"'`.
+1a. **Shell environment:** Bash is available at `/bin/bash` (also symlinked at `/usr/bin/bash` and `/bin/sh`). When running shell commands, use `/bin/bash` or `/bin/sh` explicitly if `bash` is not found on PATH. The available PATH is: `$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin`. Available tools: `cat`, `ls`, `grep`, `find`, `mkdir`, `rm`, `cp`, `mv`, `ln`, `chmod`, `chown`, `touch`, `pwd`, `echo`, `env`, `dirname`, `basename`, `head`, `tail`, `wc`, `sort`, `tr`, `sed`, `cut`, `tee`, `xargs`, `id`, `whoami`, `uname`, `readlink`, `curl`, `jq`, `git`, `ps`, `kill`, `kubectl`. Tools NOT available: `python3`, `python`, `gh`, `wget`, `apt`, `yum`, `pip`, `npm`, `node`, `awk`, `perl`.
 2. **NEVER add `events.postStart` or `events.preStart` unless the user explicitly asks for it.** PostStart hooks run as Kubernetes lifecycle hooks and will **fail the entire workspace** if the command exits non-zero. Commands that depend on project sources (e.g. `go mod download`, `npm install`) will fail because the project may not be cloned yet when the postStart hook runs. Instead, let users run setup commands manually after the workspace starts.
 3. Always use `schemaVersion: 2.2.2` (latest stable) unless the user requests 2.3.0.
 4. Set `mountSources: true` on the main dev container so project files are available at `/projects`.
 5. Use `${PROJECT_SOURCE}` variable for `workingDir` in commands (resolves to the project directory).
 6. Set reasonable `memoryLimit` and `cpuLimit` for containers.
-7. Use UBI-based container images for Red Hat compatibility (prefer `ubi9` over `ubi8`).
+7. **Container image selection:**
+   - **When the user asks for a specific language/technology stack** (e.g., "add a Node.js container", "I need Python", "use Go"), choose the corresponding lightweight image — Docker Hub official images (`docker.io/node`, `docker.io/python`, `docker.io/golang`, etc.) or Red Hat UBI images (`registry.access.redhat.com/ubi9/nodejs-20`, etc.). Do NOT use `quay.io/devfile/universal-developer-image` (UDI) in this case — it is too heavy and generic when the user wants a specific runtime.
+   - **When the user does NOT specify a particular image or stack** (e.g., "create a devfile for this repo", "set up a workspace"), default to `quay.io/devfile/universal-developer-image:ubi9-latest` — it includes all common languages and tools.
+   - Prefer `ubi9` over `ubi8` variants.
 8. Define `build` and `run` command groups with `isDefault: true`.
 9. Use `endpoints` for any ports that need to be accessible.
 10. Use `volume` components for caches (Maven, npm, pip) that should persist.
 11. **NEVER use this agent's own image or gritty/terminal images in generated devfiles.** The devfile should use development images appropriate for the user's project (e.g., UDI, Node.js, Go, Python images).
-12. **The `command` and `args` fields on containers:** Dev images like UDI already have a long-running entrypoint, so `args` is not needed for them. However, **standard OS images** (e.g., `debian`, `ubuntu`, `alpine`, `fedora`, `centos`) and many **language runtime images** (e.g., `docker.io/node`, `docker.io/python`, `docker.io/golang`) will exit immediately without `args`, causing `CrashLoopBackOff`. For these images, you **MUST** add `args` to keep the container alive. See the "Container `args` Field" section below for details and examples.
+12. **The `command` and `args` fields on containers:** You **MUST** add `args: [tail, '-f', /dev/null]` to **every** container component **EXCEPT** `quay.io/devfile/universal-developer-image` (UDI). This applies to all images: OS images, language runtimes, database images (`mysql`, `postgres`, `redis`, etc.), and any other third-party image. Without `args`, containers may exit immediately and cause `CrashLoopBackOff`. UDI is the only exception because it has a built-in long-running entrypoint.
 13. **All `name` fields (projects, components, commands) MUST match the pattern `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`.** This means: lowercase letters, digits, and hyphens only; must start and end with a letter or digit. Convert names like `Angular_Tutorial_App` → `angular-tutorial-app`, `My Project` → `my-project`. To convert a Git repo name: lowercase it, replace any character that is not `a-z`, `0-9`, or `-` with `-`, strip leading/trailing hyphens.
 
 ## Real-World Devfile Examples
@@ -824,6 +828,10 @@ components:
   - name: db
     container:
       image: docker.io/postgres:16-alpine
+      args:
+        - tail
+        - '-f'
+        - /dev/null
       memoryLimit: 512Mi
       env:
         - name: POSTGRES_USER
@@ -885,7 +893,7 @@ curl -sSk -H "Authorization: Bearer ${TOKEN}" \
 |---------|-------|-----|
 | `OOMKilled` | Container exceeded memory limit | Increase `memoryLimit` in the devfile container spec |
 | `ImagePullBackOff` | Container image not found or no pull credentials | Fix image URL or add pull secret |
-| `CrashLoopBackOff` | Container process exits immediately | Check logs; if using a standard OS or Docker Hub image, add `args: [tail, '-f', /dev/null]` to keep it alive. Otherwise fix `command`/`args` or image entrypoint |
+| `CrashLoopBackOff` | Container process exits immediately | Check logs; add `args: [tail, '-f', /dev/null]` to all non-UDI containers. Otherwise fix `command`/`args` or image entrypoint |
 | Status stuck at `Starting` | DWO controller waiting on conditions | Check conditions — often `StorageReady` or `DeploymentReady` |
 | `FailedScheduling` | Insufficient cluster resources (CPU/memory) | Reduce resource requests in devfile |
 | PVC `Pending` | No matching StorageClass or capacity | Switch to `ephemeral` storage or reduce volume size |

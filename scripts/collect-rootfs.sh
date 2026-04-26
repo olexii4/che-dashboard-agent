@@ -36,6 +36,7 @@ done
 # Bash
 copy_bin /bin/bash $R/bin/bash
 ln -sf bash $R/bin/sh
+ln -sf /bin/bash $R/usr/bin/bash
 
 # Coreutils and tools needed by Claude Code agent
 for cmd in cat ls grep find mkdir rm cp mv ln chmod chown touch \
