@@ -140,6 +140,7 @@ The `args` field overrides the container image's default `CMD`. This is essentia
 **When NOT to use `args`:**
 - UDI (`quay.io/devfile/universal-developer-image`) — already has a long-running entrypoint
 - Red Hat UBI dev images (`ubi9/nodejs-20`, `ubi9/python-312`, etc.) — already configured for Che
+- Database / service images (`mysql`, `postgres`, `redis`, `mongo`, `mariadb`, etc.) — they start a daemon by default
 - Custom dev images that already include a shell entrypoint
 
 **The standard pattern** to keep a container alive:
