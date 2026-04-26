@@ -23,6 +23,9 @@ copy_bin /usr/local/bin/ttyd $R/usr/local/bin/ttyd
 # kubectl (static binary)
 copy_bin /usr/local/bin/kubectl $R/usr/local/bin/kubectl
 
+# gh (GitHub CLI — static binary)
+copy_bin /usr/local/bin/gh $R/usr/local/bin/gh
+
 # Claude Code — Bun standalone executable; do NOT strip (stripping removes
 # the appended application bytecode, leaving only the bare Bun runtime).
 cp -L /usr/local/bin/claude $R/usr/local/bin/claude-bin
