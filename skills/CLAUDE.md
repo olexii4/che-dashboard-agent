@@ -40,6 +40,37 @@ This is NON-NEGOTIABLE. Before writing ANY devfile, apply this checklist to EVER
 
 If you generate a devfile without `args` on a non-UDI container, the workspace WILL fail with `CrashLoopBackOff`.
 
+## ⚠️ MANDATORY — Blocked Commands (THIS IS A MINIMAL CONTAINER)
+
+**This container has NO `python3`, `python`, `awk`, `perl`, `node`, `npm`, `gh`, `wget`, `apt`, `yum`, or `pip`.**
+
+Do NOT attempt to use them — they will ALWAYS fail. Use these alternatives instead:
+
+| Instead of | Use |
+|---|---|
+| `python3 -c "import json; ..."` | `jq` |
+| `python3` / `python` (any use) | `jq`, `sed`, `curl`, or `bash` builtins |
+| `awk '{print $1}'` | `cut -d' ' -f1` or `sed` |
+| `awk` (any use) | `cut`, `sed`, `tr`, `grep`, or `bash` builtins |
+| `perl -pe '...'` | `sed` |
+| `gh api` / `gh pr` | `curl` with GitHub REST API |
+| `wget` | `curl` |
+| `node -e '...'` | `jq` or `bash` |
+
+**Available tools:** `bash`, `cat`, `ls`, `grep`, `find`, `mkdir`, `rm`, `cp`, `mv`, `ln`, `chmod`, `chown`, `touch`, `pwd`, `echo`, `env`, `dirname`, `basename`, `head`, `tail`, `wc`, `sort`, `tr`, `sed`, `cut`, `tee`, `xargs`, `id`, `whoami`, `uname`, `readlink`, `curl`, `jq`, `git`, `ps`, `kill`, `kubectl`.
+
+**For JSON manipulation, ALWAYS use `jq`.** Examples:
+```bash
+# Read a field
+echo '{"name":"test"}' | jq -r '.name'
+
+# Set a field in a file
+jq '.data["key"] = "value"' file.json
+
+# Build JSON from variables
+jq -n --arg val "$MY_VAR" '{"data": {"key": $val}}'
+```
+
 ## IMPORTANT: How to Access and Edit Devfiles
 
 User devfiles are stored in a Kubernetes ConfigMap named `devfile-creator-storage` in the user's namespace. Each devfile is a key-value pair where the key is a UUID and the value is the raw YAML content.
@@ -314,8 +345,7 @@ attributes:
 
 ### CRITICAL Rules
 
-1. **NEVER use `gh` (GitHub CLI) or `python3`/`python`.** These commands are NOT available in this environment. For GitHub, use `git` commands or `curl` with the GitHub REST API. For JSON manipulation, use `jq` (available). For example, instead of `python3 -c "import json; ..."`, use `jq` filters like `jq '.data["key"] = "value"'`.
-1a. **Shell environment:** Bash is available at `/bin/bash` (also symlinked at `/usr/bin/bash` and `/bin/sh`). When running shell commands, use `/bin/bash` or `/bin/sh` explicitly if `bash` is not found on PATH. The available PATH is: `$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin`. Available tools: `cat`, `ls`, `grep`, `find`, `mkdir`, `rm`, `cp`, `mv`, `ln`, `chmod`, `chown`, `touch`, `pwd`, `echo`, `env`, `dirname`, `basename`, `head`, `tail`, `wc`, `sort`, `tr`, `sed`, `cut`, `tee`, `xargs`, `id`, `whoami`, `uname`, `readlink`, `curl`, `jq`, `git`, `ps`, `kill`, `kubectl`. Tools NOT available: `python3`, `python`, `gh`, `wget`, `apt`, `yum`, `pip`, `npm`, `node`, `awk`, `perl`.
+1. **NEVER use `python3`, `python`, `awk`, `perl`, `node`, `npm`, `gh`, `wget`.** See the "Blocked Commands" section above for alternatives. Use `jq` for JSON, `sed`/`cut`/`tr` for text processing, `curl` for HTTP.
 2. **NEVER add `events.postStart` or `events.preStart` unless the user explicitly asks for it.** PostStart hooks run as Kubernetes lifecycle hooks and will **fail the entire workspace** if the command exits non-zero. Commands that depend on project sources (e.g. `go mod download`, `npm install`) will fail because the project may not be cloned yet when the postStart hook runs. Instead, let users run setup commands manually after the workspace starts.
 3. Always use `schemaVersion: 2.2.2` (latest stable) unless the user requests 2.3.0.
 4. Set `mountSources: true` on the main dev container so project files are available at `/projects`.
