@@ -128,6 +128,79 @@ components:
           value: development
 ```
 
+#### Container `args` Field
+
+The `args` field overrides the container image's default `CMD`. This is essential when using images that don't have a long-running entrypoint — without it, the container exits immediately and Kubernetes reports `CrashLoopBackOff`.
+
+**When to use `args`:**
+- Standard OS images: `debian`, `ubuntu`, `alpine`, `fedora`, `centos`, `busybox`
+- Vanilla language runtimes from Docker Hub: `node`, `python`, `golang`, `ruby`, `rust`
+- Any image whose default command exits immediately (e.g., prints help text and quits)
+
+**When NOT to use `args`:**
+- UDI (`quay.io/devfile/universal-developer-image`) — already has a long-running entrypoint
+- Red Hat UBI dev images (`ubi9/nodejs-20`, `ubi9/python-312`, etc.) — already configured for Che
+- Custom dev images that already include a shell entrypoint
+
+**The standard pattern** to keep a container alive:
+```yaml
+args:
+  - tail
+  - '-f'
+  - /dev/null
+```
+
+**Full example — Debian container:**
+```yaml
+components:
+  - name: runtime
+    container:
+      image: docker.io/debian:bookworm
+      args:
+        - tail
+        - '-f'
+        - /dev/null
+      memoryLimit: 2Gi
+      mountSources: true
+```
+
+**Full example — Node.js from Docker Hub:**
+```yaml
+components:
+  - name: node
+    container:
+      image: docker.io/node:22-slim
+      args:
+        - tail
+        - '-f'
+        - /dev/null
+      memoryLimit: 4Gi
+      mountSources: true
+      endpoints:
+        - name: http
+          targetPort: 3000
+          exposure: public
+```
+
+**Full example — Python from Docker Hub:**
+```yaml
+components:
+  - name: python
+    container:
+      image: docker.io/python:3.12-slim
+      args:
+        - tail
+        - '-f'
+        - /dev/null
+      memoryLimit: 2Gi
+      mountSources: true
+```
+
+**Important notes:**
+- Each argument is a separate list item in YAML. Do NOT write `args: ['tail', '-f', '/dev/null']` — use the multi-line list format shown above.
+- The `-f` argument must be quoted (`'-f'`) in YAML because it starts with a dash.
+- The `command` field overrides `ENTRYPOINT`. Usually you only need `args` (which overrides `CMD`). Use `command` only if you need to replace the entrypoint entirely.
+
 **Volume component**:
 ```yaml
 components:
@@ -214,7 +287,7 @@ attributes:
 8. Use `endpoints` for any ports that need to be accessible.
 9. Use `volume` components for caches (Maven, npm, pip) that should persist.
 10. **NEVER use this agent's own image or gritty/terminal images in generated devfiles.** The devfile should use development images appropriate for the user's project (e.g., UDI, Node.js, Go, Python images).
-11. **The `command` and `args` fields on containers are rarely needed.** The default entrypoint of most dev images is sufficient. Do NOT add `command: ['tail']` / `args: ['-f', '/dev/null']` unless the image requires it.
+11. **The `command` and `args` fields on containers:** Dev images like UDI already have a long-running entrypoint, so `args` is not needed for them. However, **standard OS images** (e.g., `debian`, `ubuntu`, `alpine`, `fedora`, `centos`) and many **language runtime images** (e.g., `docker.io/node`, `docker.io/python`, `docker.io/golang`) will exit immediately without `args`, causing `CrashLoopBackOff`. For these images, you **MUST** add `args` to keep the container alive. See the "Container `args` Field" section below for details and examples.
 12. **All `name` fields (projects, components, commands) MUST match the pattern `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`.** This means: lowercase letters, digits, and hyphens only; must start and end with a letter or digit. Convert names like `Angular_Tutorial_App` → `angular-tutorial-app`, `My Project` → `my-project`. To convert a Git repo name: lowercase it, replace any character that is not `a-z`, `0-9`, or `-` with `-`, strip leading/trailing hyphens.
 
 ## Real-World Devfile Examples
@@ -641,6 +714,128 @@ commands:
         isDefault: true
 ```
 
+### Example 8: Debian / Ubuntu with `args` (Standard OS Image)
+
+A workspace using a plain Debian image. Requires `args` to keep the container running:
+
+```yaml
+schemaVersion: 2.3.0
+metadata:
+  name: debian-dev
+components:
+  - name: runtime
+    container:
+      image: docker.io/debian:bookworm
+      args:
+        - tail
+        - '-f'
+        - /dev/null
+      memoryLimit: 2Gi
+      memoryRequest: 256Mi
+      cpuRequest: 500m
+      cpuLimit: 2000m
+      mountSources: true
+commands:
+  - id: install-tools
+    exec:
+      label: "Install build tools"
+      component: runtime
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: apt-get update && apt-get install -y build-essential
+      group:
+        kind: build
+        isDefault: true
+```
+
+### Example 9: Docker Hub Node.js with `args`
+
+Using the official Docker Hub Node.js image instead of UDI:
+
+```yaml
+schemaVersion: 2.2.2
+metadata:
+  name: node-docker-hub
+components:
+  - name: node
+    container:
+      image: docker.io/node:22-slim
+      args:
+        - tail
+        - '-f'
+        - /dev/null
+      memoryLimit: 4Gi
+      memoryRequest: 512Mi
+      cpuRequest: 500m
+      cpuLimit: 2000m
+      mountSources: true
+      endpoints:
+        - name: http
+          targetPort: 3000
+          exposure: public
+projects:
+  - name: my-app
+    git:
+      remotes:
+        origin: https://github.com/user/my-app.git
+commands:
+  - id: install
+    exec:
+      label: "Install dependencies"
+      component: node
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: npm install
+      group:
+        kind: build
+        isDefault: true
+  - id: run
+    exec:
+      label: "Run"
+      component: node
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: npm start
+      group:
+        kind: run
+        isDefault: true
+```
+
+### Example 10: Multi-Container with Mixed Image Types
+
+A project with UDI (no `args` needed) and a sidecar database (needs `args` or has its own entrypoint):
+
+```yaml
+schemaVersion: 2.2.2
+metadata:
+  name: fullstack-app
+components:
+  - name: tools
+    container:
+      image: quay.io/devfile/universal-developer-image:ubi9-latest
+      memoryLimit: 4Gi
+      mountSources: true
+      endpoints:
+        - name: frontend
+          targetPort: 3000
+          exposure: public
+        - name: backend
+          targetPort: 8080
+          exposure: public
+  - name: db
+    container:
+      image: docker.io/postgres:16-alpine
+      memoryLimit: 512Mi
+      env:
+        - name: POSTGRES_USER
+          value: dev
+        - name: POSTGRES_PASSWORD
+          value: dev
+        - name: POSTGRES_DB
+          value: app
+      endpoints:
+        - name: postgres
+          targetPort: 5432
+          exposure: internal
+```
+
 ## Troubleshooting DevWorkspace Startup Failures
 
 When a user's workspace fails to start, you can diagnose and fix the problem using the Kubernetes API.
@@ -688,7 +883,7 @@ curl -sSk -H "Authorization: Bearer ${TOKEN}" \
 |---------|-------|-----|
 | `OOMKilled` | Container exceeded memory limit | Increase `memoryLimit` in the devfile container spec |
 | `ImagePullBackOff` | Container image not found or no pull credentials | Fix image URL or add pull secret |
-| `CrashLoopBackOff` | Container process exits immediately | Check logs; fix `command`/`args` or image entrypoint |
+| `CrashLoopBackOff` | Container process exits immediately | Check logs; if using a standard OS or Docker Hub image, add `args: [tail, '-f', /dev/null]` to keep it alive. Otherwise fix `command`/`args` or image entrypoint |
 | Status stuck at `Starting` | DWO controller waiting on conditions | Check conditions — often `StorageReady` or `DeploymentReady` |
 | `FailedScheduling` | Insufficient cluster resources (CPU/memory) | Reduce resource requests in devfile |
 | PVC `Pending` | No matching StorageClass or capacity | Switch to `ephemeral` storage or reduce volume size |
