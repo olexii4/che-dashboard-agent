@@ -127,7 +127,7 @@ data:
           "cpuLimit": "1",
           "terminalPort": 8080,
           "env": [],
-          "initCommand": "claude --dangerously-skip-permissions"
+          "initCommand": "claude --dangerously-skip-permissions --append-system-prompt \"CRITICAL RULES: 1) EVERY non-UDI container MUST have args: [tail, -f, /dev/null]. 2) NEVER use python3, awk, perl, node — use jq, sed, cut, curl.\""
         }
       ],
       "defaultAgentId": "dashboard-agent"

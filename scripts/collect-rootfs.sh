@@ -117,6 +117,7 @@ export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 export CLAUDE_CODE_SKIP_PERMISSIONS_CONFIRMATION=1
 export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 cp /opt/claude-skills/CLAUDE.md "$HOME/CLAUDE.md" 2>/dev/null || true
+cp /opt/claude-skills/CLAUDE.md "$HOME/.claude/CLAUDE.md" 2>/dev/null || true
 cp /opt/claude-skills/settings.json "$HOME/.claude/settings.json" 2>/dev/null || true
 cp /opt/claude-skills/claude.json "$HOME/.claude.json" 2>/dev/null || true
 if [ ! -f "$HOME/.claude/plugins/known_marketplaces.json" ]; then
