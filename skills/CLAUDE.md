@@ -343,6 +343,124 @@ attributes:
 - `registry.access.redhat.com/ubi9/go-toolset:latest` — Go
 - `registry.access.redhat.com/ubi9/openjdk-21:latest` — Java 21
 
+### How to Analyze a Project and Generate Commands
+
+**Before generating a devfile, ALWAYS analyze the project repository** to determine the correct tech stack, commands, and container images. Use the GitHub REST API or `git` to read key files.
+
+#### Step 1: Identify the tech stack by reading project files
+
+```bash
+# For a GitHub URL, fetch package.json / pom.xml / go.mod / etc.
+curl -sSL "https://raw.githubusercontent.com/<owner>/<repo>/<branch>/package.json" | jq '.'
+
+# Check for specific framework markers
+curl -sSL "https://raw.githubusercontent.com/<owner>/<repo>/<branch>/package.json" | jq '{scripts: .scripts, deps: (.dependencies + .devDependencies) | keys}'
+```
+
+**What to look for:**
+- `package.json` → Node.js project. Check `scripts` for available commands, `dependencies` for framework.
+- `pom.xml` or `build.gradle` → Java project
+- `go.mod` → Go project
+- `requirements.txt` / `pyproject.toml` / `setup.py` → Python project
+- `Cargo.toml` → Rust project
+- `Gemfile` → Ruby project
+
+#### Step 2: Generate correct commands based on project analysis
+
+**CRITICAL: NEVER use bare framework CLI names as commands.** Framework CLIs (`remix`, `next`, `vite`, `webpack`, `tsc`, `jest`, `prisma`, `drizzle`, etc.) are **local project dependencies**, NOT global binaries. They will fail with `command not found`.
+
+**Node.js command rules:**
+
+| Wrong (will fail) | Correct |
+|---|---|
+| `remix build` | `npx remix build` or `npm run build` |
+| `remix dev` | `npx remix dev` or `npm run dev` |
+| `next build` | `npx next build` or `npm run build` |
+| `next dev` | `npx next dev` or `npm run dev` |
+| `vite build` | `npx vite build` or `npm run build` |
+| `tsc` | `npx tsc` or `npm run typecheck` |
+| `jest` | `npx jest` or `npm test` |
+| `webpack` | `npx webpack` or `npm run build` |
+| `prisma migrate` | `npx prisma migrate dev` |
+
+**Best practice: always prefer `npm run <script>` over `npx <tool>`** — the project's `package.json` scripts already know the correct flags and options. Read the `scripts` section of `package.json` to find available script names.
+
+**Example — reading package.json to generate commands:**
+If `package.json` has:
+```json
+{
+  "scripts": {
+    "dev": "remix vite:dev",
+    "build": "remix vite:build",
+    "start": "remix-serve ./build/server/index.js",
+    "typecheck": "tsc"
+  }
+}
+```
+Then the devfile commands should be:
+```yaml
+commands:
+  - id: install
+    exec:
+      component: tools
+      commandLine: npm install
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: build
+  - id: build
+    exec:
+      component: tools
+      commandLine: npm run build
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: build
+        isDefault: true
+  - id: run
+    exec:
+      component: tools
+      commandLine: npm run dev
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: run
+        isDefault: true
+  - id: start-prod
+    exec:
+      component: tools
+      commandLine: npm run start
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: run
+```
+
+**Java command rules:**
+- Use `mvn` or `gradle` commands directly (they are global tools in dev images)
+- Example: `mvn clean package -DskipTests`, `mvn spring-boot:run`, `gradle build`
+
+**Go command rules:**
+- Use `go` commands directly: `go build ./...`, `go run .`, `go test ./...`
+
+**Python command rules:**
+- Use `pip install -r requirements.txt`, `python app.py`, `python -m pytest`
+
+#### Step 3: Choose the right container image for the tech stack
+
+| Project type | Recommended image | Notes |
+|---|---|---|
+| Node.js (any framework) | `quay.io/devfile/universal-developer-image:ubi9-latest` | Has Node.js, npm, and all build tools pre-installed |
+| Node.js + specific version | `docker.io/node:22-slim` (needs `args`) | Lighter, but needs `args: [tail, -f, /dev/null]` |
+| Java / Spring Boot | `quay.io/devfile/universal-developer-image:ubi9-latest` | Has Java, Maven, Gradle |
+| Go | `quay.io/devfile/universal-developer-image:ubi9-latest` | Has Go toolchain |
+| Python | `quay.io/devfile/universal-developer-image:ubi9-latest` | Has Python, pip |
+| Multi-language | `quay.io/devfile/universal-developer-image:ubi9-latest` | Has everything |
+| Database sidecar (MySQL) | `docker.io/library/mysql:8.0` (needs `args`) | Sidecar only |
+| Database sidecar (PostgreSQL) | `docker.io/postgres:16-alpine` (needs `args`) | Sidecar only |
+| Database sidecar (Redis) | `docker.io/redis:7-alpine` (needs `args`) | Sidecar only |
+
+**When to use UDI vs specific images:**
+- **Default to UDI** for the main development container — it has all common tools pre-installed and commands like `npm`, `node`, `go`, `java`, `python`, `mvn`, `gradle` just work.
+- **Use specific images only for sidecars** (databases, caches, message queues) — these are NOT the main development container, they provide a service.
+- **Use specific runtime images** (`docker.io/node:22-slim`, `docker.io/python:3.12-slim`) only when the user explicitly asks for a specific version or a lightweight image.
+
 ### CRITICAL Rules
 
 1. **NEVER use `python3`, `python`, `awk`, `perl`, `node`, `npm`, `gh`, `wget`.** See the "Blocked Commands" section above for alternatives. Use `jq` for JSON, `sed`/`cut`/`tr` for text processing, `curl` for HTTP.
