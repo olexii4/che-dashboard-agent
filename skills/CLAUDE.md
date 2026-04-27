@@ -435,6 +435,7 @@ commands:
 **Java command rules:**
 - Use `mvn` or `gradle` commands directly (they are global tools in dev images)
 - Example: `mvn clean package -DskipTests`, `mvn spring-boot:run`, `gradle build`
+- **Detect Java version**: Read `maven.compiler.source` or `maven.compiler.target` from `pom.xml` (or `sourceCompatibility` from `build.gradle`) to determine the required JDK version. This is CRITICAL — using the wrong JDK version causes `invalid target release` errors.
 
 **Go command rules:**
 - Use `go` commands directly: `go build ./...`, `go run .`, `go test ./...`
@@ -446,20 +447,27 @@ commands:
 
 | Project type | Recommended image | Notes |
 |---|---|---|
-| Node.js (any framework) | `quay.io/devfile/universal-developer-image:ubi9-latest` | Has Node.js, npm, and all build tools pre-installed |
-| Node.js + specific version | `docker.io/node:22-slim` (needs `args`) | Lighter, but needs `args: [tail, -f, /dev/null]` |
-| Java / Spring Boot | `quay.io/devfile/universal-developer-image:ubi9-latest` | Has Java, Maven, Gradle |
-| Go | `quay.io/devfile/universal-developer-image:ubi9-latest` | Has Go toolchain |
-| Python | `quay.io/devfile/universal-developer-image:ubi9-latest` | Has Python, pip |
-| Multi-language | `quay.io/devfile/universal-developer-image:ubi9-latest` | Has everything |
+| Java 21 | `registry.access.redhat.com/ubi9/openjdk-21:latest` (needs `args`) | Has JDK 21 + Maven. Detect from `pom.xml` `maven.compiler.source` |
+| Java 17 | `registry.access.redhat.com/ubi9/openjdk-17:latest` (needs `args`) | Has JDK 17 + Maven |
+| Java 11 | `registry.access.redhat.com/ubi8/openjdk-11:latest` (needs `args`) | Has JDK 11 + Maven |
+| Node.js 20+ | `registry.access.redhat.com/ubi9/nodejs-20:latest` (needs `args`) | Lightweight Node.js |
+| Node.js (any) | `docker.io/node:22-slim` (needs `args`) | Specific Node.js version |
+| Go | `registry.access.redhat.com/ubi9/go-toolset:latest` (needs `args`) | Go toolchain |
+| Python 3.12 | `registry.access.redhat.com/ubi9/python-312:latest` (needs `args`) | Python + pip |
+| Python (any) | `docker.io/python:3.12-slim` (needs `args`) | Specific Python version |
+| Multi-language / unknown (last resort) | `quay.io/devfile/universal-developer-image:ubi9-latest` | Only when stack cannot be detected, no `args` needed |
 | Database sidecar (MySQL) | `docker.io/library/mysql:8.0` (needs `args`) | Sidecar only |
 | Database sidecar (PostgreSQL) | `docker.io/postgres:16-alpine` (needs `args`) | Sidecar only |
 | Database sidecar (Redis) | `docker.io/redis:7-alpine` (needs `args`) | Sidecar only |
 
-**When to use UDI vs specific images:**
-- **Default to UDI** for the main development container — it has all common tools pre-installed and commands like `npm`, `node`, `go`, `java`, `python`, `mvn`, `gradle` just work.
-- **Use specific images only for sidecars** (databases, caches, message queues) — these are NOT the main development container, they provide a service.
-- **Use specific runtime images** (`docker.io/node:22-slim`, `docker.io/python:3.12-slim`) only when the user explicitly asks for a specific version or a lightweight image.
+**Image selection rules:**
+- **ALWAYS choose the best matching specific image** for the detected tech stack. Analyze project files (`pom.xml`, `package.json`, `go.mod`, etc.) and pick the image that matches the language and version.
+- **For Java projects**: read `maven.compiler.source` / `maven.compiler.target` from `pom.xml`. Use `ubi9/openjdk-21` for Java 21, `ubi9/openjdk-17` for Java 17, etc. UDI only has Java 11 — Java 17+ projects WILL FAIL with UDI.
+- **For Node.js projects**: use `ubi9/nodejs-20` or `docker.io/node:<version>-slim`.
+- **For Go projects**: use `ubi9/go-toolset`.
+- **For Python projects**: use `ubi9/python-312` or `docker.io/python:<version>-slim`.
+- **Use UDI (`quay.io/devfile/universal-developer-image:ubi9-latest`) ONLY** as a last resort when the tech stack truly cannot be determined from project files.
+- **Use specific images for sidecars** (databases, caches, message queues) — these provide a service, not a dev environment.
 
 ### CRITICAL Rules
 
@@ -469,9 +477,13 @@ commands:
 4. Set `mountSources: true` on the main dev container so project files are available at `/projects`.
 5. Use `${PROJECT_SOURCE}` variable for `workingDir` in commands (resolves to the project directory).
 6. Set reasonable `memoryLimit` and `cpuLimit` for containers.
-7. **Container image selection:**
-   - **When the user asks for a specific language/technology stack** (e.g., "add a Node.js container", "I need Python", "use Go"), choose the corresponding lightweight image — Docker Hub official images (`docker.io/node`, `docker.io/python`, `docker.io/golang`, etc.) or Red Hat UBI images (`registry.access.redhat.com/ubi9/nodejs-20`, etc.). Do NOT use `quay.io/devfile/universal-developer-image` (UDI) in this case — it is too heavy and generic when the user wants a specific runtime.
-   - **When the user does NOT specify a particular image or stack** (e.g., "create a devfile for this repo", "set up a workspace"), default to `quay.io/devfile/universal-developer-image:ubi9-latest` — it includes all common languages and tools.
+7. **Container image selection — ALWAYS choose the best matching image:**
+   - Analyze the project first (`pom.xml`, `package.json`, `go.mod`, etc.) and choose the specific image matching the detected language and version.
+   - **Java**: read `maven.compiler.source`/`maven.compiler.target` from `pom.xml` → use `registry.access.redhat.com/ubi9/openjdk-21:latest` for Java 21, `ubi9/openjdk-17` for Java 17, etc.
+   - **Node.js**: use `registry.access.redhat.com/ubi9/nodejs-20:latest` or `docker.io/node:<version>-slim`.
+   - **Go**: use `registry.access.redhat.com/ubi9/go-toolset:latest`.
+   - **Python**: use `registry.access.redhat.com/ubi9/python-312:latest` or `docker.io/python:<version>-slim`.
+   - **Do NOT default to UDI.** UDI is a last resort when the tech stack truly cannot be determined.
    - Prefer `ubi9` over `ubi8` variants.
 8. Define `build` and `run` command groups with `isDefault: true`.
 9. Use `endpoints` for any ports that need to be accessible.
