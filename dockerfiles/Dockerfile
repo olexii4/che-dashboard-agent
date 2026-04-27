@@ -11,7 +11,7 @@
 # Stage 1: Build — download Claude Code + ttyd, collect minimal rootfs
 FROM debian:bookworm-slim AS builder
 
-ARG CLAUDE_CODE_VERSION=2.1.119
+ARG CLAUDE_CODE_VERSION=2.1.120
 ARG TTYD_VERSION=1.7.7
 ARG TARGETARCH
 
