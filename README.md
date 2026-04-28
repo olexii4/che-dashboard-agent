@@ -123,7 +123,7 @@ data:
           "docsUrl": "https://github.com/olexii4/che-dashboard-agent",
           "image": "quay.io/oorel/dashboard-agent",
           "tag": "v39",
-          "memoryLimit": "2Gi",
+          "memoryLimit": "896Mi",
           "cpuLimit": "1",
           "terminalPort": 8080,
           "env": [],

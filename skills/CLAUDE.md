@@ -42,7 +42,7 @@ If you generate a devfile without `args` on a non-UDI container, the workspace W
 
 ## ⚠️ MANDATORY — Blocked Commands (THIS IS A MINIMAL CONTAINER)
 
-**This container has NO `python3`, `python`, `awk`, `perl`, `node`, `npm`, `gh`, `wget`, `apt`, `yum`, or `pip`.**
+**This container has NO `python3`, `python`, `awk`, `perl`, `node`, `npm`, `gh`, `wget`, `apt`, `yum`, `pip`, or `sleep`.**
 
 Do NOT attempt to use them — they will ALWAYS fail. Use these alternatives instead:
 
@@ -56,6 +56,7 @@ Do NOT attempt to use them — they will ALWAYS fail. Use these alternatives ins
 | `gh api` / `gh pr` | `curl` with GitHub REST API |
 | `wget` | `curl` |
 | `node -e '...'` | `jq` or `bash` |
+| `sleep N` | `for i in $(seq 1 N); do :; done` or just remove the delay |
 
 **Available tools:** `bash`, `cat`, `ls`, `grep`, `find`, `mkdir`, `rm`, `cp`, `mv`, `ln`, `chmod`, `chown`, `touch`, `pwd`, `echo`, `env`, `dirname`, `basename`, `head`, `tail`, `wc`, `sort`, `tr`, `sed`, `cut`, `tee`, `xargs`, `id`, `whoami`, `uname`, `readlink`, `curl`, `jq`, `git`, `ps`, `kill`, `kubectl`.
 
@@ -1046,6 +1047,24 @@ components:
 
 When a user's workspace fails to start, you can diagnose and fix the problem using the Kubernetes API.
 
+### ⚠️ MANDATORY — Validate API Responses Before Using `jq`
+
+**ALWAYS store the `curl` response in a variable and validate it before piping to `jq`.** The K8s API may return HTML error pages, empty responses, or unexpected JSON structures that cause `jq` to fail with errors like `Cannot index string with string "phase"`.
+
+```bash
+# CORRECT — validate first
+RESP=$(curl -sSk -H "Authorization: Bearer ${TOKEN}" "${K8S_API}/...")
+if echo "$RESP" | jq -e '.kind' > /dev/null 2>&1; then
+  echo "$RESP" | jq '.status.phase'
+else
+  echo "ERROR: unexpected API response:" >&2
+  echo "$RESP" | head -5 >&2
+fi
+
+# WRONG — never do this
+curl -sSk -H "Authorization: Bearer ${TOKEN}" "${K8S_API}/..." | jq '.status.phase'
+```
+
 ### Diagnosis Workflow
 
 1. **Get the DevWorkspace status and conditions:**
@@ -1056,22 +1075,29 @@ NS="${AGENT_NAMESPACE}"
 DW_NAME="<workspace-name>"
 
 # DevWorkspace status, phase, and conditions
-curl -sSk -H "Authorization: Bearer ${TOKEN}" \
-  "${K8S_API}/apis/workspace.devfile.io/v1alpha2/namespaces/${NS}/devworkspaces/${DW_NAME}" \
-  | jq '{phase: .status.phase, message: .status.message, conditions: .status.conditions}'
+RESP=$(curl -sSk -H "Authorization: Bearer ${TOKEN}" \
+  "${K8S_API}/apis/workspace.devfile.io/v1alpha2/namespaces/${NS}/devworkspaces/${DW_NAME}")
+if echo "$RESP" | jq -e '.kind' > /dev/null 2>&1; then
+  echo "$RESP" | jq '{phase: .status.phase, message: .status.message, conditions: .status.conditions}'
+else
+  echo "ERROR: unexpected response" >&2
+  echo "$RESP" | head -5 >&2
+fi
 ```
 
 2. **Check pod status and events:**
 ```bash
 # Find workspace pods
-curl -sSk -H "Authorization: Bearer ${TOKEN}" \
-  "${K8S_API}/api/v1/namespaces/${NS}/pods?labelSelector=controller.devfile.io/devworkspace_name=${DW_NAME}" \
-  | jq '.items[] | {name: .metadata.name, phase: .status.phase, containerStatuses: .status.containerStatuses}'
+RESP=$(curl -sSk -H "Authorization: Bearer ${TOKEN}" \
+  "${K8S_API}/api/v1/namespaces/${NS}/pods?labelSelector=controller.devfile.io/devworkspace_name=${DW_NAME}")
+echo "$RESP" | jq -e '.kind' > /dev/null 2>&1 && \
+  echo "$RESP" | jq '.items[] | {name: .metadata.name, phase: .status.phase, containerStatuses: .status.containerStatuses}'
 
 # Get events for the workspace
-curl -sSk -H "Authorization: Bearer ${TOKEN}" \
-  "${K8S_API}/api/v1/namespaces/${NS}/events?fieldSelector=involvedObject.name=${DW_NAME}" \
-  | jq '.items[] | {reason: .reason, message: .message, type: .type, lastTimestamp: .lastTimestamp}'
+RESP=$(curl -sSk -H "Authorization: Bearer ${TOKEN}" \
+  "${K8S_API}/api/v1/namespaces/${NS}/events?fieldSelector=involvedObject.name=${DW_NAME}")
+echo "$RESP" | jq -e '.kind' > /dev/null 2>&1 && \
+  echo "$RESP" | jq '.items[] | {reason: .reason, message: .message, type: .type, lastTimestamp: .lastTimestamp}'
 ```
 
 3. **Check container logs:**
@@ -1108,12 +1134,28 @@ curl -sSk -X PATCH -H "Authorization: Bearer ${TOKEN}" \
 
 ### Restarting a DevWorkspace
 
+**Do NOT use `sleep` between stop and start — `sleep` is not available in this container.** Use a polling loop with bash builtins to wait for the workspace to stop before starting it again.
+
 ```bash
 # Stop
 curl -sSk -X PATCH -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/merge-patch+json" \
   "${K8S_API}/apis/workspace.devfile.io/v1alpha2/namespaces/${NS}/devworkspaces/${DW_NAME}" \
   -d '{"spec":{"started":false}}'
+
+# Wait for workspace to actually stop (poll until phase != Running/Starting)
+for i in $(seq 1 30); do
+  RESP=$(curl -sSk -H "Authorization: Bearer ${TOKEN}" \
+    "${K8S_API}/apis/workspace.devfile.io/v1alpha2/namespaces/${NS}/devworkspaces/${DW_NAME}")
+  PHASE=$(echo "$RESP" | jq -r '.status.phase // "Unknown"' 2>/dev/null)
+  STARTED=$(echo "$RESP" | jq -r '.spec.started // "null"' 2>/dev/null)
+  if [ "$STARTED" = "false" ] && [ "$PHASE" != "Starting" ] && [ "$PHASE" != "Running" ]; then
+    echo "Workspace stopped (phase: ${PHASE})"
+    break
+  fi
+  echo "Waiting for workspace to stop (phase: ${PHASE}, attempt ${i}/30)..."
+  for j in $(seq 1 500000); do :; done
+done
 
 # Start
 curl -sSk -X PATCH -H "Authorization: Bearer ${TOKEN}" \
