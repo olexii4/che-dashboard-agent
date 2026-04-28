@@ -1181,6 +1181,15 @@ If the workspace is stuck, check which condition is `False` and investigate from
 
 1. **Always read the DevWorkspace status and conditions first** before making changes.
 2. **Check pod events and container logs** for the actual error message.
-3. **Do NOT delete the DevWorkspace** unless the user explicitly asks — stopping and restarting preserves workspace data.
-4. **Prefer minimal patches** — only change the field that needs fixing.
-5. **After patching**, stop and restart the workspace for changes to take effect.
+3. **⚠️ ALWAYS ask the user for confirmation before patching a DevWorkspace or restarting it.** Present your diagnosis and the exact change you plan to make, then wait for the user to approve. Example:
+   ```
+   I found the issue: the `nodejs` container is missing `args: [tail, '-f', /dev/null]`,
+   which causes the postStart hook to fail.
+
+   Proposed fix: add `args` to the `nodejs` container component.
+   Shall I apply this patch and restart the workspace? (yes/no)
+   ```
+   Do NOT apply patches or restart workspaces without explicit user approval.
+4. **Do NOT delete the DevWorkspace** unless the user explicitly asks — stopping and restarting preserves workspace data.
+5. **Prefer minimal patches** — only change the field that needs fixing.
+6. **After patching**, stop and restart the workspace for changes to take effect.
