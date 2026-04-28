@@ -42,8 +42,8 @@ ConfigMap "devfile-creator-storage"
 
 ```bash
 # Using make
-make build TAG=v39
-make push TAG=v39
+make build TAG=next
+make push TAG=next
 
 # Or directly
 podman build -f dockerfiles/Dockerfile -t quay.io/oorel/dashboard-agent:next .
@@ -122,7 +122,7 @@ data:
           "icon": "",
           "docsUrl": "https://github.com/olexii4/che-dashboard-agent",
           "image": "quay.io/oorel/dashboard-agent",
-          "tag": "v39",
+          "tag": "next",
           "memoryLimit": "896Mi",
           "cpuLimit": "1",
           "terminalPort": 8080,
