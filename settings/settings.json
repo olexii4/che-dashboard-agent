@@ -1,6 +1,9 @@
 {
   "env": {},
-  "model": "claude-opus-4-6",
+  "model": "claude-opus-4-7",
   "hasCompletedOnboarding": true,
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "enabledPlugins": {
+    "che-dashboard-agent@che-dashboard-local": true
+  }
 }

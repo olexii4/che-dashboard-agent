@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "che-dashboard-local",
+  "description": "Local Eclipse Che Dashboard Agent plugin",
+  "owner": {
+    "name": "Red Hat",
+    "email": "oorel@redhat.com"
+  },
+  "plugins": [
+    {
+      "name": "che-dashboard-agent",
+      "description": "AI assistant for Eclipse Che Dashboard: Devfile Creator and Workspace Troubleshooting",
+      "source": "./che-dashboard-agent"
+    }
+  ]
+}

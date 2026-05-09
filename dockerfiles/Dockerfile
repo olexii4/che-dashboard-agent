@@ -11,7 +11,7 @@
 # Stage 1: Build — download Claude Code + ttyd, collect minimal rootfs
 FROM debian:bookworm-slim AS builder
 
-ARG CLAUDE_CODE_VERSION=2.1.120
+ARG CLAUDE_CODE_VERSION=2.1.133
 ARG TTYD_VERSION=1.7.7
 ARG TARGETARCH
 
@@ -59,9 +59,12 @@ FROM scratch
 COPY --from=builder /rootfs/ /
 
 # Claude Code config files
-COPY skills/CLAUDE.md /opt/claude-skills/CLAUDE.md
+COPY CLAUDE.md /opt/claude-skills/CLAUDE.md
 COPY settings/settings.json /opt/claude-skills/settings.json
 COPY settings/claude.json /opt/claude-skills/claude.json
+
+# Plugin: Devfile Creator + Workspace Troubleshooting skills
+COPY plugin/ /opt/claude-plugin/
 
 ENV PATH="/usr/local/bin:/usr/bin:/bin" \
     HOME="/tmp/claude-home" \

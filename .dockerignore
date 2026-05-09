@@ -3,7 +3,8 @@
 .idea
 .cursor
 *.md
-!skills/CLAUDE.md
+!CLAUDE.md
+!plugin/**
 LICENSE
 docs
 devfile.yaml

@@ -1,4 +1,12 @@
 #!/bin/bash
+#
+# Copyright (c) 2026 Red Hat, Inc.
+# This program and the accompanying materials are made
+# available under the terms of the Eclipse Public License 2.0
+# which is available at https://www.eclipse.org/legal/epl-2.0/
+#
+# SPDX-License-Identifier: EPL-2.0
+#
 set -e
 
 R=/rootfs
@@ -120,11 +128,20 @@ cp /opt/claude-skills/CLAUDE.md "$HOME/CLAUDE.md" 2>/dev/null || true
 cp /opt/claude-skills/CLAUDE.md "$HOME/.claude/CLAUDE.md" 2>/dev/null || true
 cp /opt/claude-skills/settings.json "$HOME/.claude/settings.json" 2>/dev/null || true
 cp /opt/claude-skills/claude.json "$HOME/.claude.json" 2>/dev/null || true
+# Pre-install the che-dashboard-agent plugin from the embedded plugin directory
+PLUGIN_SRC="/opt/claude-plugin/che-dashboard-agent"
+PLUGIN_CACHE="$HOME/.claude/plugins/cache/che-dashboard-local/che-dashboard-agent/1.0.0"
+if [ -d "$PLUGIN_SRC" ] && [ ! -d "$PLUGIN_CACHE" ]; then
+  mkdir -p "$PLUGIN_CACHE"
+  cp -r "$PLUGIN_SRC/." "$PLUGIN_CACHE/"
+fi
 if [ ! -f "$HOME/.claude/plugins/known_marketplaces.json" ]; then
-  echo "{\"claude-plugins-official\":{\"source\":{\"source\":\"github\",\"repo\":\"anthropics/claude-plugins-official\"},\"installLocation\":\"$HOME/.claude/plugins/marketplaces/claude-plugins-official\",\"lastUpdated\":\"2026-04-19T00:00:00.000Z\"}}" > "$HOME/.claude/plugins/known_marketplaces.json" 2>/dev/null || true
+  printf '{"claude-plugins-official":{"source":{"source":"github","repo":"anthropics/claude-plugins-official"},"installLocation":"%s/.claude/plugins/marketplaces/claude-plugins-official","lastUpdated":"2026-04-19T00:00:00.000Z"},"che-dashboard-local":{"source":{"source":"directory","path":"/opt/claude-plugin"},"installLocation":"%s/.claude/plugins/marketplaces/che-dashboard-local","lastUpdated":"2026-04-19T00:00:00.000Z"}}' \
+    "$HOME" "$HOME" > "$HOME/.claude/plugins/known_marketplaces.json" 2>/dev/null || true
 fi
 if [ ! -f "$HOME/.claude/plugins/installed_plugins.json" ]; then
-  echo '{"version":2,"plugins":{}}' > "$HOME/.claude/plugins/installed_plugins.json" 2>/dev/null || true
+  printf '{"version":2,"plugins":{"che-dashboard-agent@che-dashboard-local":[{"scope":"user","installPath":"%s","version":"1.0.0","installedAt":"2026-04-19T00:00:00.000Z","lastUpdated":"2026-04-19T00:00:00.000Z"}]}}' \
+    "$PLUGIN_CACHE" > "$HOME/.claude/plugins/installed_plugins.json" 2>/dev/null || true
 fi
 # Configure kubectl with the cluster API and user token
 if [ -n "$KUBERNETES_API_URL" ]; then
