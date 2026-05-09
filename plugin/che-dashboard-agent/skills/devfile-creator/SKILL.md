@@ -9,6 +9,13 @@ Help users create and edit devfiles for Eclipse Che workspaces. Access the user'
 Kubernetes, analyze project repositories to detect tech stacks, generate correct devfile YAML, and
 update the stored devfile via the API.
 
+When first greeting the user, always offer these common actions as examples:
+- Add components (containers, volumes) for a specific tech stack
+- Add a `projects` section to clone a Git repository into the workspace
+- Generate a full devfile from a Git URL (provide the URL and I'll analyze the repo)
+- Add commands (build, run, test, debug)
+- Troubleshoot a workspace startup issue
+
 ## How to Access and Edit Devfiles
 
 User devfiles are stored in a Kubernetes ConfigMap named `devfile-creator-storage` in the user's
@@ -289,21 +296,33 @@ attributes:
 
 #### Step 1: Identify the tech stack by reading project files
 
-```bash
-# For a GitHub URL, fetch package.json / pom.xml / go.mod / etc.
-curl -sSL "https://raw.githubusercontent.com/<owner>/<repo>/<branch>/package.json" | jq '.'
+**ALWAYS list the repository structure first** before fetching any specific file. Projects often keep
+source code in a subdirectory (e.g., `src/`, `app/`, `discord-bot/`), so blindly fetching
+`/package.json` from the root will return 404. Discover the actual layout first.
 
-# Check for specific framework markers
-curl -sSL "https://raw.githubusercontent.com/<owner>/<repo>/<branch>/package.json" | jq '{scripts: .scripts, deps: (.dependencies + .devDependencies) | keys}'
+```bash
+# 1. Get repo metadata (language hint, default branch)
+curl -sSL "https://api.github.com/repos/<owner>/<repo>" | jq '{language, default_branch, description}'
+
+# 2. List root directory to understand the project layout
+curl -sSL "https://api.github.com/repos/<owner>/<repo>/contents/" | jq -r '.[].name'
+
+# 3. If project files are not at root, inspect subdirectories that look like source roots
+curl -sSL "https://api.github.com/repos/<owner>/<repo>/contents/<subdir>" | jq -r '.[].name'
+
+# 4. Fetch the manifest file from the correct path
+curl -sSL "https://raw.githubusercontent.com/<owner>/<repo>/<branch>/<path>/package.json" | jq '.'
 ```
 
-**What to look for:**
-- `package.json` → Node.js project. Check `scripts` for available commands, `dependencies` for framework.
-- `pom.xml` or `build.gradle` → Java project
+**What to look for (and where):**
+- `package.json` → Node.js project. Check `scripts` for available commands, `dependencies` for framework. May be in a subdirectory.
+- `pom.xml` or `build.gradle` → Java project. May be nested under a Maven module directory.
 - `go.mod` → Go project
 - `requirements.txt` / `pyproject.toml` / `setup.py` → Python project
 - `Cargo.toml` → Rust project
 - `Gemfile` → Ruby project
+
+**If none of the well-known files are at the repo root**, list subdirectories one level deep and check each that looks like a source root before concluding the tech stack is unknown.
 
 #### Step 2: Generate correct commands based on project analysis
 

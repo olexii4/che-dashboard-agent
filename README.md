@@ -14,9 +14,10 @@ The agent can also assist with troubleshooting DevWorkspace startup failures —
 |---|---|
 | `dockerfiles/Dockerfile` | Multi-stage build: downloads Claude Code binary + ttyd + kubectl, produces a minimal scratch image |
 | `scripts/collect-rootfs.sh` | Collects minimal rootfs for the scratch image (binaries, shared libs, glibc compat stubs, wrapper scripts) |
-| `settings/settings.json` | Claude Code configuration (model selection) |
+| `settings/settings.json` | Claude Code configuration (model selection, enabled plugins) |
 | `settings/claude.json` | Onboarding state: skips first-run wizard and startup tips |
-| `skills/CLAUDE.md` | Agent system prompt: devfile format reference, Kubernetes API access, container args rules, image selection, troubleshooting |
+| `CLAUDE.md` | Base system prompt: role, mandatory container `args` rule, blocked commands, environment variables |
+| `plugin/` | Claude Code plugin with two contextual skills (see [Agent Skills](#agent-skills)) |
 | `devfile.yaml` | Reference devfile for standalone testing (not used by the dashboard backend) |
 | `Makefile` | Build, push, run, and smoke-test targets |
 
@@ -56,7 +57,7 @@ CI builds are triggered on push to `main` via the [Next Build workflow](.github/
 
 - **Base image**: `scratch` (minimal — only binaries and shared libraries)
 - **Terminal server**: [ttyd](https://github.com/tsl0922/ttyd) v1.7.7 (single static binary, ~5 MB)
-- **Claude Code**: v2.1.119 (Bun standalone binary — must not be stripped)
+- **Claude Code**: v2.1.133 (Bun standalone binary — must not be stripped)
 - **kubectl**: latest stable (for Kubernetes API access)
 - **Runtime deps**: bash, curl, git, jq, coreutils, procps (no Node.js, no Python)
 - **glibc compat**: librt, libpthread, libdl, libm, libutil stubs (required by Bun runtime on glibc 2.34+)
@@ -76,23 +77,43 @@ CI builds are triggered on push to `main` via the [Next Build workflow](.github/
 
 | File | Purpose |
 |---|---|
-| `settings/settings.json` | Claude Code model and environment settings |
+| `settings/settings.json` | Claude Code model and enabled plugins |
 | `settings/claude.json` | Onboarding state — skips first-run wizard and suppresses startup tips |
-| `skills/CLAUDE.md` | Agent system prompt with devfile knowledge, container args rules, image selection logic, and Kubernetes API access patterns |
+| `CLAUDE.md` | Base system prompt: role, mandatory container `args` rule, blocked commands, environment variables |
+| `plugin/` | Claude Code plugin pre-installed at container startup (see [Agent Skills](#agent-skills)) |
 
 The `ANTHROPIC_API_KEY` environment variable must be available to the agent container (via a Kubernetes Secret labeled for DevWorkspace mounting, or the `env` array in the `ai-agent-registry` ConfigMap).
 
-## Agent Skills (CLAUDE.md)
+## Agent Skills
 
-The agent system prompt includes:
+The agent uses a [Claude Code plugin](plugin/che-dashboard-agent/) with two contextually-activated skills. Claude loads the relevant skill based on what the user is asking.
 
-- **Devfile format reference** — schema versions, components, commands, projects, endpoints, volumes
+### `devfile-creator`
+
+Activated when the user asks to create or edit a devfile, configure workspace components, or analyze a repository.
+
+- **Devfile format reference** — schema v2.2.2/v2.3.0, components, commands, projects, endpoints, volumes
 - **Container `args` rule** — every non-UDI container must have `args: [tail, '-f', /dev/null]` to prevent `CrashLoopBackOff`
-- **Image selection logic** — use specific runtime images (Node, Python, Go, etc.) when user asks for a stack; default to UDI only when no stack is specified
+- **Image selection logic** — detects tech stack from `package.json`, `pom.xml`, `go.mod`, etc. and picks the best-matching UBI image; falls back to UDI only when stack cannot be determined
 - **Kubernetes API access** — direct ConfigMap CRUD via curl + user token, and dashboard REST API
-- **DevWorkspace troubleshooting** — diagnosis workflow, common failure patterns, patching and restarting workspaces
-- **Blocked commands** — `python3`, `python`, `gh` are not available; use `jq` for JSON manipulation
-- **Shell environment** — documents available tools and bash location
+- **10 real-world examples** — Node.js, Go, Python, Java/Spring Boot, multi-container, Debian, and more
+
+### `workspace-troubleshooting`
+
+Activated when the user reports a workspace that won't start or has errors.
+
+- **Diagnosis workflow** — reads DevWorkspace status, conditions, pod events, and container logs
+- **Failure pattern table** — `CrashLoopBackOff`, `OOMKilled`, `ImagePullBackOff`, `FailedScheduling`, PVC conflicts
+- **Safe patching** — proposes minimal spec patches with explicit user confirmation before applying
+- **Safe restart** — stop/start loop using bash polling (no `sleep` binary available)
+
+### Base context (`CLAUDE.md`)
+
+Always active regardless of which skill is loaded:
+
+- **Blocked commands** — `python3`, `python`, `awk`, `perl`, `node`, `npm`, `gh`, `wget`, `apt`, `yum`, `pip`, `sleep` are unavailable; use `jq`, `sed`, `cut`, `curl` instead
+- **Mandatory `args` rule** — enforced at the base level as a hard constraint
+- **Environment variables** — `AGENT_NAMESPACE`, `KUBERNETES_API_URL`, `CHE_USER_TOKEN_FILE`
 
 ## Patching Eclipse Che with the Dashboard Agent
 
